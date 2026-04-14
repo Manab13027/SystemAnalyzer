@@ -1,0 +1,909 @@
+{% extends "base.html" %}
+{% block title %}Target {{ pixel_id[:12] }} – SystemAnalyzer{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+  <a href="{{ url_for('dashboard') }}" style="color:var(--muted); font-size:13px;">&#8592; Dashboard</a>
+  <span style="color:var(--border);">/</span>
+  <h1 style="font-size:20px; font-weight:700;">Target Report</h1>
+  <code style="font-size:13px;">{{ pixel_id }}</code>
+</div>
+
+<!-- Top stats -->
+{% set total_cves = namespace(n=0) %}
+{% set max_score  = namespace(v=0) %}
+{% for comp, cve_list in cves_by_component.items() %}
+  {% set total_cves.n = total_cves.n + cve_list|length %}
+  {% for c in cve_list %}
+    {% if c.cvss_score and c.cvss_score > max_score.v %}{% set max_score.v = c.cvss_score %}{% endif %}
+  {% endfor %}
+{% endfor %}
+
+<div class="grid-3" style="margin-bottom:24px;">
+  <div class="stat-box">
+    <div class="stat-value">{{ hits|length }}</div>
+    <div class="stat-label">Pixel Hits</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" style="color:var(--orange);">{{ total_cves.n }}</div>
+    <div class="stat-label">CVEs Found</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" style="color:{% if max_score.v >= 9 %}var(--critical){% elif max_score.v >= 7 %}var(--red){% elif max_score.v >= 4 %}var(--orange){% else %}var(--green){% endif %};">
+      {{ "%.1f"|format(max_score.v) if max_score.v else '—' }}
+    </div>
+    <div class="stat-label">Max CVSS Score</div>
+  </div>
+</div>
+
+<!-- ── IP Intelligence card (full width) ───────────────────────────────────── -->
+{% if ip_intel %}
+<div class="card" style="border-color:rgba(88,166,255,.4); margin-bottom:20px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border);">
+    <div class="card-title" style="margin:0;padding:0;border:0;">🌍 IP Intelligence</div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      {% if ip_intel.is_proxy %}<span class="badge" style="background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.4);">⚠ VPN / PROXY</span>{% endif %}
+      {% if ip_intel.is_hosting %}<span class="badge" style="background:rgba(248,81,73,.1);color:var(--orange);border:1px solid rgba(248,81,73,.3);">⚠ HOSTING / DATACENTER</span>{% endif %}
+      {% if ip_intel.is_mobile %}<span class="badge badge-info">📱 MOBILE CARRIER</span>{% endif %}
+    </div>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;">
+    {% if ip_intel.country %}
+    <div style="background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:6px; padding:10px;">
+      <div style="font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Location</div>
+      <div style="font-size:13px; font-weight:600;">{{ ip_intel.city or '' }}{% if ip_intel.city and ip_intel.region %}, {% endif %}{{ ip_intel.region or '' }}</div>
+      <div style="font-size:12px; color:var(--muted);">{{ ip_intel.country or '' }} {% if ip_intel.country_code %}({{ ip_intel.country_code }}){% endif %}</div>
+    </div>
+    {% endif %}
+    {% if ip_intel.isp %}
+    <div style="background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:6px; padding:10px;">
+      <div style="font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">ISP / Network</div>
+      <div style="font-size:12px; font-weight:600; word-break:break-word;">{{ ip_intel.isp }}</div>
+      {% if ip_intel.org and ip_intel.org != ip_intel.isp %}<div style="font-size:11px; color:var(--muted);">{{ ip_intel.org }}</div>{% endif %}
+    </div>
+    {% endif %}
+    {% if ip_intel.asn %}
+    <div style="background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:6px; padding:10px;">
+      <div style="font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">ASN</div>
+      <div style="font-size:12px; font-family:monospace;">{{ ip_intel.asn }}</div>
+    </div>
+    {% endif %}
+    {% if ip_intel.timezone %}
+    <div style="background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:6px; padding:10px;">
+      <div style="font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Timezone</div>
+      <div style="font-size:12px;">{{ ip_intel.timezone }}</div>
+    </div>
+    {% endif %}
+    {% if ip_intel.lat and ip_intel.lon %}
+    <div style="background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:6px; padding:10px;">
+      <div style="font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">
+        IP Location <span style="color:var(--yellow);font-weight:400;text-transform:none;">⚠ ISP exit point</span>
+      </div>
+      <a href="https://maps.google.com/?q={{ ip_intel.lat }},{{ ip_intel.lon }}" target="_blank"
+         style="font-size:12px; color:var(--accent);">{{ "%.4f"|format(ip_intel.lat) }}, {{ "%.4f"|format(ip_intel.lon) }} ↗</a>
+      <div style="font-size:10px; color:var(--muted); margin-top:4px; line-height:1.4;">
+        IP geolocation = ISP exchange, not device.<br>
+        GPS coordinates (exact) appear in Fingerprint table if browser permission was granted.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Nmap Port Scan card (full width) ───────────────────────────────────── -->
+<div class="card" style="border-color:rgba(63,185,80,.3); margin-bottom:20px;" id="nmap-card">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border);">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="card-title" style="margin:0;padding:0;border:0;">🔍 Port Scan (Nmap)</div>
+      {% if nmap %}
+        {% if nmap.status == 'complete' %}
+          <span class="badge" style="background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.4);">✓ Complete</span>
+        {% elif nmap.status == 'running' %}
+          <span class="badge badge-info" id="nmap-status-badge">⟳ Running…</span>
+        {% elif nmap.status == 'timeout' %}
+          <span class="badge" style="color:var(--orange);">⏱ Timed out</span>
+        {% elif nmap.status == 'failed' %}
+          <span class="badge" style="color:var(--red);">✗ Failed</span>
+        {% elif nmap.status == 'unavailable' %}
+          <span class="badge" style="color:var(--muted);">nmap not installed</span>
+        {% else %}
+          <span class="badge badge-info">{{ nmap.status }}</span>
+        {% endif %}
+      {% else %}
+        <span class="badge" style="color:var(--muted);" id="nmap-status-badge">Not yet scanned</span>
+      {% endif %}
+    </div>
+    <button id="scan-btn" onclick="triggerScan()" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">
+      {{ '⟳ Rescan' if nmap and nmap.status == 'complete' else '▶ Scan Now' }}
+    </button>
+  </div>
+
+  {% if open_ports %}
+  <!-- OS guess -->
+  {% if nmap.os_guess %}
+  <div style="background:rgba(63,185,80,.07); border:1px solid rgba(63,185,80,.2); border-radius:6px; padding:8px 12px; margin-bottom:12px; font-size:12px;">
+    <strong style="color:var(--green);">OS Detected:</strong> {{ nmap.os_guess }}
+  </div>
+  {% endif %}
+
+  <!-- Port table -->
+  <table style="font-size:12px;">
+    <thead>
+      <tr>
+        <th style="width:80px;">Port</th>
+        <th style="width:60px;">Proto</th>
+        <th style="width:120px;">Service</th>
+        <th>Version / Banner</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in open_ports %}
+      {% set risk_svc = ['ssh','ftp','telnet','http','https','smb','rdp','vnc','mssql','mysql','postgres','mongodb','redis','elasticsearch'] %}
+      {% set is_risky = p.service in risk_svc or p.port in [21,22,23,25,80,443,445,1433,3306,3389,5432,5900,6379,9200,27017] %}
+      <tr style="{% if is_risky %}background:rgba(248,81,73,.04);{% endif %}">
+        <td><code style="font-weight:700; color:{% if is_risky %}var(--red){% else %}var(--accent){% endif %};">{{ p.port }}</code></td>
+        <td><span style="color:var(--muted);">{{ p.protocol }}</span></td>
+        <td><span class="badge badge-info">{{ p.service }}</span></td>
+        <td style="color:var(--muted); font-family:monospace; font-size:11px; word-break:break-word;">
+          {{ p.version_info or '—' }}
+          {% if p.version %}<span style="color:var(--accent); font-weight:600;"> v{{ p.version }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="color:var(--muted); font-size:11px; margin-top:10px;">
+    {{ open_ports|length }} open port(s) found. CVEs for discovered services are auto-added to the CVE panel.
+    {% if nmap.ts %} · Scanned {{ nmap.ts[:16].replace('T',' ') }} UTC{% endif %}
+  </p>
+
+  {% elif nmap and nmap.status == 'complete' %}
+  <p style="color:var(--muted); font-size:12px;">No open ports found in top-1000 scan.</p>
+
+  {% elif nmap and nmap.status in ('running', 'pending') %}
+  <p style="color:var(--muted); font-size:12px;" id="nmap-waiting">
+    ⟳ Scan in progress — results will appear here. <a href="javascript:location.reload()">Refresh page</a> when complete.
+  </p>
+
+  {% elif nmap and nmap.status == 'unavailable' %}
+  <p style="color:var(--muted); font-size:12px;">
+    nmap is not installed. Install it with:<br>
+    <code style="font-size:11px;">brew install nmap</code> (macOS) &nbsp;·&nbsp;
+    <code style="font-size:11px;">sudo apt install nmap</code> (Linux)
+  </p>
+
+  {% else %}
+  <p style="color:var(--muted); font-size:12px;">
+    Click <strong>▶ Scan Now</strong> to run a service/version scan against this target's IP.
+    Results feed directly into the CVE panel above.
+  </p>
+  {% endif %}
+</div>
+
+<div class="grid-2">
+  <!-- Fingerprint card -->
+  <div>
+    <div class="card">
+      <div class="card-title">System Fingerprint</div>
+      {% if fp %}
+      <table>
+        <tr><th style="width:38%">Field</th><th>Value</th></tr>
+        <tr><td>IP Address</td>    <td><code>{{ fp.ip or '—' }}</code></td></tr>
+        <tr><td>OS</td>            <td>{{ fp.os_raw or (fp.os_family ~ ' ' ~ fp.os_version) or '—' }}</td></tr>
+        <tr><td>Browser</td>       <td>{{ fp.browser_family or '—' }} {{ fp.browser_version or '' }}</td></tr>
+        <tr><td>Device Type</td>   <td><span class="badge badge-info">{{ fp.device_type or '—' }}</span></td></tr>
+        <tr><td>Device Brand</td>  <td>{{ fp.device_brand or '—' }}</td></tr>
+        <tr><td>Platform</td>      <td><code>{{ fp.platform or '—' }}</code></td></tr>
+        <tr><td>Screen</td>        <td>{{ fp.screen_res or '—' }}
+          {% if fp.color_depth %} · {{ fp.color_depth }}-bit{% endif %}
+        </td></tr>
+        <tr><td>Timezone</td>      <td>{{ fp.timezone or '—' }}</td></tr>
+        <tr><td>Language</td>      <td>{{ fp.language or '—' }}</td></tr>
+        <tr><td>CPU Cores</td>     <td>{{ fp.cpu_cores or '—' }}</td></tr>
+        <tr><td>RAM (GB)</td>      <td>{{ fp.memory_gb or '—' }}</td></tr>
+        <tr><td>Touch</td>         <td>{{ 'Yes' if fp.touch else 'No' }}</td></tr>
+        <tr><td>Connection</td>    <td>{{ fp.connection_type or '—' }}</td></tr>
+        <tr><td>Canvas Hash</td>   <td><code>{{ fp.canvas_hash or '—' }}</code></td></tr>
+        <tr><td>Audio Hash</td>    <td><code>{{ fp.audio_hash or '—' }}</code></td></tr>
+        <tr><td>WebGL Vendor</td>  <td>{{ fp.webgl_vendor or '—' }}</td></tr>
+        <tr><td>WebGL Renderer</td><td>{{ fp.webgl_renderer or '—' }}</td></tr>
+        {% if fp.ntlm_computer %}
+        <tr><td>Computer Name</td> <td><span style="color:var(--green);font-weight:700;">{{ fp.ntlm_computer }}</span> <span style="color:var(--muted);font-size:11px;">(NTLM)</span></td></tr>
+        {% endif %}
+        {% if fp.ntlm_domain %}
+        <tr><td>Domain</td>        <td><span style="color:var(--accent);">{{ fp.ntlm_domain }}</span> <span style="color:var(--muted);font-size:11px;">(NTLM)</span></td></tr>
+        {% endif %}
+        {% if fp.ua_os %}
+        <tr><td>OS (verified)</td> <td>{{ fp.ua_os }} {{ fp.ua_os_version or '' }} <span style="color:var(--green);font-size:11px;">✓ Client Hints</span></td></tr>
+        {% endif %}
+        {% if fp.ua_architecture %}
+        <tr><td>Architecture</td>  <td><code>{{ fp.ua_architecture }}</code></td></tr>
+        {% endif %}
+        {% if fp.hostname %}
+        <tr><td>mDNS ID</td>       <td><code style="font-size:11px;">{{ fp.hostname }}</code></td></tr>
+        {% endif %}
+        {% if fp.local_ips and fp.local_ips != '[]' %}
+        <tr><td>Local IPs</td>     <td>{% for ip in fp.local_ips|from_json %}<code>{{ ip }}</code> {% endfor %}</td></tr>
+        {% endif %}
+        {# ── New enhanced fields from JS ── #}
+        {% set jp = fp.js_payload | from_json if fp.js_payload else {} %}
+        {% if jp.camera_count is defined %}
+        <tr><td>Cameras</td>       <td>{{ jp.camera_count }} <span style="color:var(--muted);font-size:11px;">device(s)</span>
+          {% if jp.camera_count > 0 %}<span style="color:var(--green);font-size:11px;"> ● active</span>{% endif %}</td></tr>
+        {% endif %}
+        {% if jp.microphone_count is defined %}
+        <tr><td>Microphones</td>   <td>{{ jp.microphone_count }} <span style="color:var(--muted);font-size:11px;">device(s)</span>
+          {% if jp.microphone_count > 0 %}<span style="color:var(--green);font-size:11px;"> ● active</span>{% endif %}</td></tr>
+        {% endif %}
+        {% if jp.prefers_dark is defined %}
+        <tr><td>Dark Mode</td>     <td>{{ '🌙 Yes' if jp.prefers_dark else '☀ No' }}</td></tr>
+        {% endif %}
+        {% if jp.pointer_type %}
+        <tr><td>Pointer</td>       <td>{{ jp.pointer_type }}
+          {% if jp.pointer_type == 'coarse' %}<span style="color:var(--muted);font-size:11px;"> (likely touchscreen)</span>{% endif %}</td></tr>
+        {% endif %}
+        {% if jp.hdr_display is defined and jp.hdr_display %}
+        <tr><td>HDR Display</td>   <td><span style="color:var(--yellow);">✓ HDR capable</span></td></tr>
+        {% endif %}
+        {% if jp.js_heap_used_mb is defined %}
+        <tr><td>JS Heap Used</td>  <td>{{ jp.js_heap_used_mb }} MB <span style="color:var(--muted);font-size:11px;">of {{ jp.js_heap_limit_mb or '?' }} MB limit</span></td></tr>
+        {% endif %}
+        {% if jp.battery_level is defined %}
+        <tr><td>Battery</td>       <td>{{ (jp.battery_level * 100) | int }}%
+          {{ '⚡ Charging' if jp.charging else '🔋 On battery' }}</td></tr>
+        {% endif %}
+        {# Permissions #}
+        {% if jp.camera_perm or jp.microphone_perm or jp.notifications_perm %}
+        <tr><td>Permissions</td>   <td>
+          {% if jp.camera_perm %}<span class="tag" style="font-size:10px;">📷 cam: {{ jp.camera_perm }}</span> {% endif %}
+          {% if jp.microphone_perm %}<span class="tag" style="font-size:10px;">🎤 mic: {{ jp.microphone_perm }}</span> {% endif %}
+          {% if jp.notifications_perm %}<span class="tag" style="font-size:10px;">🔔 notif: {{ jp.notifications_perm }}</span> {% endif %}
+        </td></tr>
+        {% endif %}
+        {# ── Server-resolved hostname (rDNS / NetBIOS / mDNS) ── #}
+        {% if fp.rdns_hostname %}
+        <tr><td>Hostname</td>      <td>
+          <span style="color:var(--green);font-weight:700;font-size:13px;">{{ fp.rdns_hostname }}</span>
+          <span style="color:var(--muted);font-size:11px; margin-left:4px;">
+            ({{ fp.rdns_method or 'resolved' }})
+          </span>
+        </td></tr>
+        {% endif %}
+        {# ── GPS Coordinates (browser Geolocation API) ── #}
+        {% if fp.geo_lat and fp.geo_lon %}
+        <tr><td>📍 GPS Location</td><td>
+          <a href="https://maps.google.com/?q={{ fp.geo_lat }},{{ fp.geo_lon }}" target="_blank"
+             style="color:var(--green);font-weight:700;">
+            {{ "%.5f"|format(fp.geo_lat) }}, {{ "%.5f"|format(fp.geo_lon) }}
+          </a>
+          {% if fp.geo_accuracy %}
+          <span style="color:var(--muted);font-size:11px;"> ±{{ fp.geo_accuracy | int }}m</span>
+          {% endif %}
+          <span style="color:var(--green);font-size:11px;margin-left:4px;">⚡ GPS/WiFi</span>
+        </td></tr>
+        {% if fp.geo_altitude %}
+        <tr><td>Altitude</td>      <td>{{ fp.geo_altitude | int }} m</td></tr>
+        {% endif %}
+        {% endif %}
+        <tr><td>First Seen</td>    <td>{{ fp.ts[:16].replace('T',' ') if fp.ts else '—' }}</td></tr>
+      </table>
+      {% else %}
+      <p class="empty">No JS fingerprint collected yet — pixel only hit.</p>
+      {% endif %}
+    </div>
+
+    <!-- Speech Synthesis Voices -->
+    {% if fp and fp.js_payload %}
+    {% set jp2 = fp.js_payload | from_json %}
+    {% if jp2.speech_voices and jp2.speech_voices | length > 0 %}
+    <div class="card">
+      <div class="card-title">🗣 Speech Voices ({{ jp2.speech_voices | length }})</div>
+      {% for v in jp2.speech_voices[:20] %}
+        <span class="tag" style="font-size:10px;">{{ v }}</span>
+      {% endfor %}
+      {% if jp2.speech_voices | length > 20 %}<span style="color:var(--muted);font-size:11px;"> +{{ jp2.speech_voices | length - 20 }} more…</span>{% endif %}
+      <p style="color:var(--muted);font-size:11px;margin-top:8px;">Installed TTS voices reveal OS locale and accessibility configuration.</p>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Plugins -->
+    {% if fp and fp.plugins and fp.plugins != '[]' %}
+    <div class="card">
+      <div class="card-title">Browser Plugins</div>
+      {% for p in fp.plugins | from_json %}
+        <span class="tag">{{ p }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Fonts -->
+    {% if fp and fp.fonts and fp.fonts != '[]' %}
+    <div class="card">
+      <div class="card-title">Detected Fonts ({{ fp.fonts | from_json | length }})</div>
+      {% for f in fp.fonts | from_json %}
+        <span class="tag">{{ f }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Detected Applications -->
+    {% if fp and fp.detected_apps and fp.detected_apps != '[]' %}
+    <div class="card">
+      <div class="card-title">Detected Installed Applications</div>
+      {% for app in fp.detected_apps | from_json %}
+        <span class="tag" style="background:rgba(63,185,80,.1); border-color:rgba(63,185,80,.3); color:var(--green);">{{ app }}</span>
+      {% endfor %}
+      <p style="color:var(--muted); font-size:11px; margin-top:10px;">
+        Detected via URI scheme probing. CVEs for these apps are included in the report.
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- MIME Types -->
+    {% if fp and fp.mime_types and fp.mime_types != '[]' %}
+    <div class="card">
+      <div class="card-title">Supported MIME Types ({{ fp.mime_types | from_json | length }})</div>
+      {% for m in fp.mime_types | from_json %}
+        <span class="tag" style="font-size:10px;">{{ m }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Raw UA -->
+    {% if fp and fp.user_agent %}
+    <div class="card">
+      <div class="card-title">User-Agent String</div>
+      <pre>{{ fp.user_agent }}</pre>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- CVE panel -->
+  <div>
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border);">
+        <span class="card-title" style="margin:0; padding:0; border:0;">CVE Intelligence</span>
+        <button onclick="refreshCVEs()" class="btn btn-outline" style="padding:4px 10px; font-size:12px;" id="refresh-btn">
+          &#8635; Refresh CVEs
+        </button>
+      </div>
+
+      {% if cves_by_component %}
+        {% for component, cve_list in cves_by_component.items() %}
+        <div style="margin-bottom:20px;">
+          <div style="font-weight:600; font-size:13px; color:var(--accent); margin-bottom:8px;">
+            {{ component }}
+          </div>
+          {% for cve in cve_list %}
+          {% set s = cve.cvss_score %}
+          <div style="border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+              <a href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank"
+                 style="font-weight:700; font-size:13px; font-family:monospace;">
+                {{ cve.cve_id }}
+              </a>
+              {% if s %}
+                {% if s >= 9.0 %}
+                  <span class="badge badge-critical">{{ "%.1f"|format(s) }} CRITICAL</span>
+                {% elif s >= 7.0 %}
+                  <span class="badge badge-high">{{ "%.1f"|format(s) }} HIGH</span>
+                {% elif s >= 4.0 %}
+                  <span class="badge badge-medium">{{ "%.1f"|format(s) }} MEDIUM</span>
+                {% else %}
+                  <span class="badge badge-low">{{ "%.1f"|format(s) }} LOW</span>
+                {% endif %}
+              {% else %}
+                <span class="badge badge-unknown">UNKNOWN</span>
+              {% endif %}
+            </div>
+            {% if s %}
+            <div class="cvss-bar">
+              <div class="cvss-fill" style="width:{{ (s/10*100)|int }}%;
+                background:{% if s >= 9 %}#ff0000{% elif s >= 7 %}var(--red){% elif s >= 4 %}var(--orange){% else %}var(--yellow){% endif %};"></div>
+            </div>
+            {% endif %}
+            <p style="font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5;">
+              {{ cve.description[:280] }}{% if cve.description|length > 280 %}…{% endif %}
+            </p>
+            {% if cve.published %}
+            <div style="font-size:11px; color:var(--border); margin-top:6px;">
+              Published: {{ cve.published[:10] }}
+              {% if cve.modified %} · Modified: {{ cve.modified[:10] }}{% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="empty">No CVEs yet. CVE lookup runs automatically after fingerprint collection.<br>
+          Click <strong>Refresh CVEs</strong> to trigger a manual lookup.</p>
+      {% endif %}
+    </div>
+
+    <!-- AI Analysis -->
+    <div class="card" id="ai-card" style="border-color:rgba(88,166,255,.4);">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border);">
+        <span class="card-title" style="margin:0;padding:0;border:0;">🤖 AI Risk Analysis</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="ai-btn" onclick="runAIAnalysis()" class="btn btn-primary" style="padding:4px 12px;font-size:12px;">
+            ✦ Analyze with AI
+          </button>
+          <button id="atk-btn" onclick="runAttackPaths()" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">
+            ⛓ Attack Chains
+          </button>
+          <button id="profile-btn" onclick="runProfile()" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">
+            👤 Profile Target
+          </button>
+          <button id="phishing-btn" onclick="togglePhishing()" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">
+            🎣 Phishing Payloads
+          </button>
+          <a href="/report/{{ pixel_id }}" target="_blank" class="btn btn-outline" style="padding:4px 12px;font-size:12px;text-decoration:none;">
+            📄 Full Report
+          </a>
+        </div>
+      </div>
+      <div id="ai-key-warn" style="display:none; background:rgba(248,81,73,.08); border:1px solid rgba(248,81,73,.3); border-radius:6px; padding:12px; font-size:12px; color:var(--red); margin-bottom:10px;">
+        ⚠ <strong>No AI model configured.</strong>
+        Start Ollama (<code>ollama serve</code>) or set <code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code> and restart.
+      </div>
+      <div id="ai-output" style="display:none;">
+        <div id="ai-text" style="font-size:13px; line-height:1.7; color:var(--text);"></div>
+      </div>
+      <div id="atk-output" style="display:none; margin-top:12px;"></div>
+
+      <!-- Target Profile output -->
+      <div id="profile-output" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">
+          👤 Target Profile
+        </div>
+        <div id="profile-content"></div>
+      </div>
+
+      <!-- Phishing Payload Builder -->
+      <div id="phishing-panel" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">
+          🎣 Phishing Payload Builder
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <select id="phishing-type"
+            style="background:#010409;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;flex:1;min-width:200px;">
+            <option value="Corporate IT Security Alert">Corporate IT Security Alert</option>
+            <option value="Password / MFA Reset">Password / MFA Reset</option>
+            <option value="Meeting / Calendar Invite">Meeting / Calendar Invite</option>
+            <option value="Slack / Teams Direct Message">Slack / Teams Direct Message</option>
+            <option value="Software Update Notification">Software Update Notification</option>
+            <option value="HR / Payroll Notification">HR / Payroll Notification</option>
+            <option value="VPN / Remote Access Alert">VPN / Remote Access Alert</option>
+            <option value="Package Delivery Notification">Package Delivery Notification</option>
+            <option value="Custom (describe below)">Custom (describe below)</option>
+          </select>
+          <button onclick="generatePhishing()" id="phishing-gen-btn" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">Generate</button>
+        </div>
+        <input id="phishing-custom" type="text" placeholder="Custom instructions (optional)…"
+          style="width:100%;background:#010409;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px;display:none;">
+        <div id="phishing-output" style="display:none;"></div>
+      </div>
+
+      <p id="ai-placeholder" style="color:var(--muted); font-size:12px;">
+        Click <strong>Analyze with AI</strong> · <strong>Attack Chains</strong> · <strong>Profile Target</strong> · <strong>Phishing Payloads</strong> or open the <strong>Full Report</strong>.
+      </p>
+    </div>
+
+    <!-- Behavioural Analysis -->
+    <div class="card" style="border-color:rgba(210,153,34,.3);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+        <span class="card-title" style="margin:0;padding:0;border:0;">🕐 Behavioural Analysis</span>
+        <button onclick="runBehaviour(this)" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">Analyse Behaviour</button>
+      </div>
+      <div id="behaviour-output"><p style="color:var(--muted);font-size:12px;">Analyses hit timestamps to infer work hours, activity patterns and best payload delivery window.</p></div>
+    </div>
+
+    <!-- Hit log -->
+    <div class="card">
+      <div class="card-title">Pixel Hit Log</div>
+      {% if hits %}
+      <table>
+        <tr>
+          <th>Timestamp (UTC)</th>
+          <th>IP</th>
+          <th>Referrer</th>
+        </tr>
+        {% for h in hits %}
+        <tr>
+          <td style="font-size:12px; white-space:nowrap;">{{ h.ts[:19].replace('T',' ') }}</td>
+          <td><code>{{ h.ip or '—' }}</code></td>
+          <td style="font-size:12px; color:var(--muted); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            {{ h.referrer or '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p class="empty">No hits recorded yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Minimal markdown renderer (no CDN dependency) ─────────────────────────
+function renderMd(md) {
+  return md
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    // headings
+    .replace(/^### (.+)$/gm,'<h4 style="color:var(--accent);margin:12px 0 4px">$1</h4>')
+    .replace(/^## (.+)$/gm,'<h3 style="color:var(--accent);margin:14px 0 5px">$1</h3>')
+    .replace(/^# (.+)$/gm,'<h2 style="color:var(--accent);margin:16px 0 6px">$1</h2>')
+    // bold / italic
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    // inline code
+    .replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px">$1</code>')
+    // bullet lists
+    .replace(/^\s*[-*] (.+)$/gm,'<li style="margin:3px 0">$1</li>')
+    .replace(/(<li[^>]*>.*<\/li>\n?)+/g,'<ul style="padding-left:18px;margin:6px 0">$&</ul>')
+    // line breaks
+    .replace(/\n{2,}/g,'</p><p style="margin:6px 0">')
+    .replace(/\n/g,'<br>');
+}
+
+// ── Nmap scan trigger ────────────────────────────────────────────────────
+function triggerScan() {
+  var btn  = document.getElementById('scan-btn');
+  var badge = document.getElementById('nmap-status-badge');
+  btn.disabled = true;
+  btn.textContent = '⟳ Starting…';
+  fetch('/api/scan/{{ pixel_id }}', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) {
+        alert('Scan error: ' + d.error);
+        btn.disabled = false;
+        btn.textContent = '▶ Scan Now';
+        return;
+      }
+      btn.textContent = '⟳ Scanning…';
+      if (badge) { badge.textContent = '⟳ Running…'; }
+      // Poll for results every 8s
+      var pollTimer = setInterval(function() {
+        fetch('/api/nmap/{{ pixel_id }}')
+          .then(function(r) { return r.json(); })
+          .then(function(s) {
+            if (s.status === 'complete' || s.status === 'failed' || s.status === 'timeout') {
+              clearInterval(pollTimer);
+              location.reload();
+            }
+          });
+      }, 8000);
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = '▶ Scan Now';
+      alert('Error: ' + e);
+    });
+}
+
+// ── CVE refresh ──────────────────────────────────────────────────────────
+// No auto-refresh — use the ⟳ Refresh button in the header
+
+function refreshCVEs() {
+  var btn = document.getElementById('refresh-btn');
+  btn.textContent = 'Refreshing…'; btn.disabled = true;
+  fetch('/api/refresh_cves/{{ pixel_id }}', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      setTimeout(function() { location.reload(); }, 8000);
+      btn.textContent = 'Lookup running… (reloading in 8s)';
+    })
+    .catch(function() { btn.textContent = 'Error – try again'; btn.disabled = false; });
+}
+
+// ── AI provider check ─────────────────────────────────────────────────────
+fetch('/api/ai-status').then(function(r){return r.json();}).then(function(d){
+  if (!d.configured) {
+    document.getElementById('ai-key-warn').style.display = 'block';
+  } else {
+    // Show which model will be used
+    var labels = {
+      'ollama':    '🦙 Ollama — ' + d.model,
+      'anthropic': '☁ Claude — '  + d.model,
+      'openai':    '☁ OpenAI — '  + d.model,
+    };
+    var btn = document.getElementById('ai-btn');
+    btn.title = 'Using: ' + (labels[d.provider] || d.provider);
+  }
+});
+
+// ── AI Risk Analysis (streaming SSE) ─────────────────────────────────────
+var _activeES = null;
+
+function runAIAnalysis() {
+  // Close any existing stream
+  if (_activeES) { _activeES.close(); _activeES = null; }
+
+  // Pause auto-reload — Ollama can take 30-60s
+  // (no auto-reload to cancel)
+
+  var btn  = document.getElementById('ai-btn');
+  var out  = document.getElementById('ai-output');
+  var text = document.getElementById('ai-text');
+  var ph   = document.getElementById('ai-placeholder');
+
+  btn.disabled = true; btn.textContent = '✦ Analyzing…';
+  out.style.display = 'block'; ph.style.display = 'none';
+  text.innerHTML = '<span style="color:var(--muted)">⏳ Streaming analysis from AI model…</span>';
+
+  var raw  = '';
+  var done = false;
+  var es   = new EventSource('/api/ai-analyze/{{ pixel_id }}');
+  _activeES = es;
+
+  es.onmessage = function(e) {
+    if (e.data === '[DONE]') {
+      done = true;
+      es.close(); _activeES = null;
+      btn.disabled = false; btn.textContent = '✦ Re-analyze';
+      text.innerHTML = '<div style="line-height:1.7">' + renderMd(raw) + '</div>';
+      // Analysis complete — no auto-reload
+      return;
+    }
+    try { raw += JSON.parse(e.data); } catch(_) { raw += e.data; }
+    text.innerHTML =
+      '<div style="line-height:1.7">' + renderMd(raw) + '</div>' +
+      '<span style="animation:blink 1s infinite;display:inline-block">▌</span>';
+  };
+
+  es.onerror = function() {
+    if (done) return;          // onerror fires on clean close in some browsers — ignore if already done
+    es.close(); _activeES = null;
+    btn.disabled = false; btn.textContent = '✦ Analyze with AI';
+    if (!raw) {
+      text.innerHTML = '<span style="color:var(--red)">⚠ Stream error — check server logs (is Ollama running?)</span>';
+    } else {
+      // Partial response received — render what we got
+      text.innerHTML = '<div style="line-height:1.7">' + renderMd(raw) + '</div>' +
+        '<p style="color:var(--muted);font-size:11px;margin-top:8px;">⚠ Stream ended early</p>';
+    }
+    // Stream ended — no auto-reload
+  };
+}
+
+// ── Attack Chain Suggestions ─────────────────────────────────────────────
+function runAttackPaths() {
+  var btn = document.getElementById('atk-btn');
+  var out = document.getElementById('atk-output');
+  btn.disabled = true; btn.textContent = '⛓ Loading…';
+  out.style.display = 'block';
+  out.innerHTML = '<span style="color:var(--muted); font-size:13px;">Generating attack chains…</span>';
+  fetch('/api/attack-paths/{{ pixel_id }}')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      btn.disabled = false; btn.textContent = '⛓ Attack Chains';
+      if (d.error) { out.innerHTML = '<span style="color:var(--red)">'+d.error+'</span>'; return; }
+      if (!d.paths || !d.paths.length) { out.innerHTML = '<span style="color:var(--muted)">No multi-step chains found.</span>'; return; }
+      var html = '<div style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;">Attack Chains</div>';
+      d.paths.forEach(function(p) {
+        var col = p.feasibility === 'Easy' ? 'var(--red)' : p.feasibility === 'Medium' ? 'var(--orange)' : 'var(--yellow)';
+        html += '<div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:10px;">';
+        html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;">';
+        html += '<strong style="font-size:13px;">'+p.name+'</strong>';
+        html += '<span class="badge" style="background:rgba(255,255,255,.05);color:'+col+';">'+p.feasibility+'</span>';
+        html += '</div>';
+        p.steps.forEach(function(s, i) {
+          html += '<div style="display:flex;gap:8px;margin-bottom:5px;font-size:12px;">';
+          html += '<span style="color:var(--accent);font-family:monospace;white-space:nowrap;">'+s.cve+'</span>';
+          html += '<span style="color:var(--muted);">→ '+s.role+'</span></div>';
+        });
+        html += '</div>';
+      });
+      out.innerHTML = html;
+    })
+    .catch(function(e) {
+      btn.disabled = false; btn.textContent = '⛓ Attack Chains';
+      out.innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>';
+    });
+}
+
+// ── Target Profiler ───────────────────────────────────────────────────────
+function runProfile() {
+  var btn = document.getElementById('profile-btn');
+  var out = document.getElementById('profile-output');
+  var con = document.getElementById('profile-content');
+  var ph  = document.getElementById('ai-placeholder');
+  btn.disabled = true; btn.textContent = '👤 Profiling…';
+  out.style.display = 'block'; ph.style.display = 'none';
+  con.innerHTML = '<span style="color:var(--muted);font-size:12px;">⏳ Building target profile…</span>';
+
+  fetch('/api/profile/{{ pixel_id }}')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      btn.disabled = false; btn.textContent = '👤 Re-Profile';
+      if (d.error) {
+        con.innerHTML = '<span style="color:var(--red)">'+d.error+'</span>'; return;
+      }
+      var riskCol = {'Low':'var(--green)','Medium':'var(--yellow)','High':'var(--orange)','Critical':'var(--red)'};
+      var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:12px;">';
+      var fields = [
+        ['Role',           d.role],
+        ['Ownership',      d.ownership],
+        ['Tech Level',     d.tech_level],
+        ['Org Type',       d.org_type],
+        ['Country',        d.country],
+        ['City',           d.city],
+        ['Work Hours',     d.work_hours],
+        ['Attack Surface', d.attack_surface],
+        ['Confidence',     d.confidence],
+      ];
+      fields.forEach(function(f) {
+        if (!f[1] || f[1]==='null') return;
+        var col = (f[0]==='Attack Surface') ? (riskCol[f[1]] || 'var(--text)') : 'var(--text)';
+        html += '<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;padding:8px 10px;">'
+          + '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:2px;">'+f[0]+'</div>'
+          + '<div style="font-size:13px;font-weight:600;color:'+col+'">'+f[1]+'</div></div>';
+      });
+      html += '</div>';
+      if (d.profile_summary) {
+        html += '<p style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:10px;">'+d.profile_summary+'</p>';
+      }
+      if (d.software_stack && d.software_stack.length) {
+        html += '<div style="margin-bottom:10px;"><span style="font-size:11px;color:var(--muted);">Inferred Stack: </span>';
+        d.software_stack.forEach(function(s){
+          html += '<span style="display:inline-block;margin:2px 3px 0 0;background:rgba(88,166,255,.1);color:var(--accent);font-size:11px;padding:2px 8px;border-radius:10px;">'+s+'</span>';
+        });
+        html += '</div>';
+      }
+      if (d.top_vectors && d.top_vectors.length) {
+        html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Top Attack Vectors</div>';
+        d.top_vectors.forEach(function(v,i){
+          html += '<div style="display:flex;gap:8px;font-size:12px;margin-bottom:4px;">'
+            + '<span style="color:var(--red);font-weight:700;">'+(i+1)+'.</span>'
+            + '<span>'+v+'</span></div>';
+        });
+      }
+      con.innerHTML = html;
+    })
+    .catch(function(e){
+      btn.disabled = false; btn.textContent = '👤 Profile Target';
+      con.innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>';
+    });
+}
+
+// ── Phishing Payload Builder ──────────────────────────────────────────────
+function togglePhishing() {
+  var panel = document.getElementById('phishing-panel');
+  var ph    = document.getElementById('ai-placeholder');
+  var shown = panel.style.display !== 'none';
+  panel.style.display = shown ? 'none' : 'block';
+  if (!shown) ph.style.display = 'none';
+}
+
+document.getElementById('phishing-type').addEventListener('change', function(){
+  var custom = document.getElementById('phishing-custom');
+  custom.style.display = this.value.indexOf('Custom') !== -1 ? 'block' : 'none';
+});
+
+function generatePhishing() {
+  var btn    = document.getElementById('phishing-gen-btn');
+  var out    = document.getElementById('phishing-output');
+  var type   = document.getElementById('phishing-type').value;
+  var custom = document.getElementById('phishing-custom').value;
+  btn.disabled = true; btn.textContent = 'Generating…';
+  out.style.display = 'block';
+  out.innerHTML = '<span style="color:var(--muted);font-size:12px;">⏳ Generating targeted payload…</span>';
+
+  fetch('/api/phishing/{{ pixel_id }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({payload_type: type, custom_note: custom})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    btn.disabled = false; btn.textContent = 'Generate';
+    if (d.error) {
+      out.innerHTML = '<div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:6px;padding:12px;font-size:12px;">'
+        +'<strong style="color:var(--red);">⚠ Payload generation failed</strong><br>'
+        +'<span style="color:var(--muted);white-space:pre-wrap;">'+d.error+'</span>'
+        +'<br><br><span style="color:var(--muted);">Quick fix: run <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px">ollama pull mistral</code> then retry.</span>'
+        +'</div>';
+      return;
+    }
+    var urgCol = {'Low':'var(--green)','Medium':'var(--yellow)','High':'var(--orange)','Critical':'var(--red)'};
+    var html = '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">';
+    // Header bar
+    html += '<div style="background:rgba(255,255,255,.04);padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">'
+      + '<div><span style="font-size:11px;color:var(--muted);">From: </span><strong style="font-size:12px;">'+escHtml(d.sender||'')+'</strong></div>'
+      + '<span style="font-size:11px;font-weight:700;color:'+(urgCol[d.urgency]||'var(--text)')+'">'+escHtml(d.urgency||'')+' urgency</span>'
+      + '</div>';
+    // Subject
+    html += '<div style="padding:10px 14px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:11px;color:var(--muted);">Subject: </span>'
+      + '<strong style="font-size:13px;">'+escHtml(d.subject||'')+'</strong></div>';
+    // Body
+    html += '<div style="padding:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text);">'+escHtml(d.body||'')+'</div>';
+    // Pretext + notes
+    if (d.pretext || d.notes) {
+      html += '<div style="background:rgba(248,81,73,.05);border-top:1px solid rgba(248,81,73,.2);padding:10px 14px;font-size:11px;">';
+      if (d.pretext) html += '<div><span style="color:var(--muted);">Pretext: </span>'+escHtml(d.pretext)+'</div>';
+      if (d.notes)   html += '<div style="margin-top:4px;"><span style="color:var(--muted);">Red-team notes: </span>'+escHtml(d.notes)+'</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    // Copy button
+    html += '<button onclick="copyPayload()" class="btn btn-outline" style="margin-top:8px;padding:4px 12px;font-size:12px;">📋 Copy Payload</button>';
+    out.innerHTML = html;
+    out._raw = (d.subject||'') + '\n\n' + (d.body||'');
+  })
+  .catch(function(e){
+    btn.disabled = false; btn.textContent = 'Generate';
+    out.innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>';
+  });
+}
+
+function copyPayload() {
+  var out = document.getElementById('phishing-output');
+  if (out._raw) navigator.clipboard.writeText(out._raw);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Behavioural Analysis ─────────────────────────────────────────────────
+function runBehaviour(btn) {
+  var out = document.getElementById('behaviour-output');
+  btn.disabled = true; btn.textContent = '🕐 Analysing…';
+  out.innerHTML = '<span style="color:var(--muted);font-size:12px;">⏳ Analysing hit patterns…</span>';
+  fetch('/api/behaviour/{{ pixel_id }}')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      btn.disabled = false; btn.textContent = 'Re-analyse';
+      if (d.error) { out.innerHTML = '<span style="color:var(--red)">'+d.error+'</span>'; return; }
+      var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:12px;">';
+      var fields = [
+        ['Active Hours',    d.active_hours],
+        ['Active Days',     (d.active_days||[]).join(', ')],
+        ['Frequency',       d.visit_frequency],
+        ['First Seen',      d.first_seen ? d.first_seen.slice(0,16).replace('T',' ') : null],
+        ['Last Seen',       d.last_seen  ? d.last_seen.slice(0,16).replace('T',' ') : null],
+        ['Timezone',        d.timezone_inferred],
+      ];
+      fields.forEach(function(f){
+        if (!f[1] || f[1]==='null' || f[1]==='') return;
+        html += '<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;padding:8px 10px;">'
+          +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:2px;">'+f[0]+'</div>'
+          +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+f[1]+'</div></div>';
+      });
+      html += '</div>';
+      if (d.best_delivery_window) {
+        html += '<div style="background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.3);border-radius:6px;padding:10px 14px;margin-bottom:10px;">'
+          +'<span style="font-size:11px;color:var(--red);font-weight:700;text-transform:uppercase;">⚡ Best Delivery Window: </span>'
+          +'<strong style="font-size:13px;">'+d.best_delivery_window+'</strong></div>';
+      }
+      if (d.behaviour_summary) {
+        html += '<p style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:8px;">'+d.behaviour_summary+'</p>';
+      }
+      if (d.anomalies && d.anomalies.length) {
+        html += '<div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">⚠ Anomalies</div>';
+        d.anomalies.forEach(function(a){
+          html += '<div style="font-size:12px;color:var(--orange);margin-bottom:3px;">• '+a+'</div>';
+        });
+      }
+      out.innerHTML = html;
+    })
+    .catch(function(e){
+      btn.disabled = false; btn.textContent = 'Analyse Behaviour';
+      out.innerHTML = '<span style="color:var(--red)">Error: '+e+'</span>';
+    });
+}
+
+// ── Blinking cursor CSS ───────────────────────────────────────────────────
+var style = document.createElement('style');
+style.textContent = '@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }';
+document.head.appendChild(style);
+</script>
+{% endblock %}

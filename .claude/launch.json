@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "systemanalyzer",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/fighter/Documents/SystemAnalyzer/app.py"],
+      "port": 5000
+    },
+    {
+      "name": "osint-dashboard",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/fighter/Documents/osintanalyzer/server.js"],
+      "port": 3000
+    }
+  ]
+}

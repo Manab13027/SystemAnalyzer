@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SystemAnalyzer{% endblock %}</title>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --text:    #c9d1d9;
+      --muted:   #8b949e;
+      --accent:  #58a6ff;
+      --green:   #3fb950;
+      --yellow:  #d29922;
+      --orange:  #db6d28;
+      --red:     #f85149;
+      --critical:#ff0000;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    header .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+    header nav a {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background .15s;
+    }
+    header nav a:hover { background: var(--border); color: var(--text); text-decoration: none; }
+
+    .container { max-width: 1300px; margin: 0 auto; padding: 24px; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.03); }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-critical { background: rgba(255,0,0,.15);     color: var(--critical); }
+    .badge-high     { background: rgba(248,81,73,.15);   color: var(--red);      }
+    .badge-medium   { background: rgba(219,109,40,.15);  color: var(--orange);   }
+    .badge-low      { background: rgba(210,153,34,.15);  color: var(--yellow);   }
+    .badge-unknown  { background: rgba(139,148,158,.15); color: var(--muted);    }
+    .badge-info     { background: rgba(88,166,255,.15);  color: var(--accent);   }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-outline { background: transparent; border-color: var(--border); color: var(--text); }
+
+    /* Code / mono */
+    code, .mono {
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: 12px;
+      background: rgba(110,118,129,.1);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #79c0ff;
+    }
+    pre {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 12px;
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      color: #79c0ff;
+    }
+
+    /* Grid */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+    /* Stat boxes */
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      text-align: center;
+    }
+    .stat-box .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+    .stat-box .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+
+    /* CVSS colour bar */
+    .cvss-bar {
+      height: 6px;
+      border-radius: 3px;
+      margin-top: 4px;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .cvss-fill { height: 100%; border-radius: 3px; }
+
+    .empty { color: var(--muted); font-style: italic; padding: 14px 0; }
+    .tag {
+      display: inline-block;
+      background: rgba(88,166,255,.1);
+      border: 1px solid rgba(88,166,255,.3);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">&#9632; SYSTEM ANALYZER</span>
+    <nav>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('generate_pixel') }}">Generate Pixel</a>
+      <a href="{{ url_for('lab.dashboard') }}" style="color:var(--green);">&#127981; Lab</a>
+    </nav>
+
+    <!-- Tunnel status bar — right side of header -->
+    <div id="tunnel-bar" style="margin-left:auto; display:flex; align-items:center; gap:10px; font-size:12px;">
+      <span id="tunnel-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;flex-shrink:0;"></span>
+      <span id="tunnel-label" style="color:var(--muted);">Checking tunnel…</span>
+      <code id="tunnel-url" style="font-size:11px; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:none;"></code>
+      <button id="tunnel-copy-btn" onclick="tunnelCopy()" style="display:none; background:transparent; border:1px solid var(--border); color:var(--text); padding:3px 9px; border-radius:5px; font-size:11px; cursor:pointer;">Copy</button>
+      <button id="tunnel-restart-btn" onclick="tunnelRestart()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:3px 9px; border-radius:5px; font-size:11px; cursor:pointer;">↺ Restart Tunnel</button>
+      <!-- Manual page refresh button -->
+      <button onclick="manualRefresh(this)"
+        title="Refresh page data"
+        style="background:transparent; border:1px solid var(--border); color:var(--muted);
+               padding:3px 10px; border-radius:5px; font-size:13px; cursor:pointer;
+               transition:color .15s,border-color .15s;"
+        onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'"
+        onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
+        ⟳ Refresh
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+
+  {% block scripts %}{% endblock %}
+
+  <script>
+  // ── Tunnel status widget ──────────────────────────────────────────────────
+  var _tunnelUrl = null;
+
+  function tunnelSetState(state, url) {
+    var dot   = document.getElementById('tunnel-dot');
+    var label = document.getElementById('tunnel-label');
+    var code  = document.getElementById('tunnel-url');
+    var copy  = document.getElementById('tunnel-copy-btn');
+    var btn   = document.getElementById('tunnel-restart-btn');
+
+    if (state === 'alive') {
+      dot.style.background = 'var(--green)';
+      dot.style.boxShadow  = '0 0 6px var(--green)';
+      label.style.color    = 'var(--green)';
+      label.textContent    = 'Tunnel live';
+      code.textContent     = url;
+      code.style.display   = 'inline';
+      copy.style.display   = 'inline';
+      _tunnelUrl = url;
+    } else if (state === 'dead') {
+      dot.style.background = 'var(--red)';
+      dot.style.boxShadow  = '0 0 6px var(--red)';
+      label.style.color    = 'var(--red)';
+      label.textContent    = 'Tunnel down';
+      code.style.display   = 'none';
+      copy.style.display   = 'none';
+      _tunnelUrl = null;
+    } else if (state === 'restarting') {
+      dot.style.background = 'var(--yellow)';
+      dot.style.boxShadow  = '0 0 6px var(--yellow)';
+      label.style.color    = 'var(--yellow)';
+      label.textContent    = 'Restarting…';
+      code.style.display   = 'none';
+      copy.style.display   = 'none';
+      btn.disabled         = true;
+      btn.textContent      = '↺ Restarting…';
+    } else {
+      dot.style.background = 'var(--muted)';
+      dot.style.boxShadow  = 'none';
+      label.style.color    = 'var(--muted)';
+      label.textContent    = 'Checking…';
+    }
+  }
+
+  function tunnelCheck() {
+    fetch('/api/tunnel/status')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        tunnelSetState(d.alive ? 'alive' : 'dead', d.url);
+      })
+      .catch(function(){ tunnelSetState('dead', null); });
+  }
+
+  function tunnelRestart() {
+    tunnelSetState('restarting', null);
+    fetch('/api/tunnel/restart', { method: 'POST' })
+      .then(function(){ _pollUntilLive(30); })  // poll every sec for up to 30s
+      .catch(function(){ tunnelSetState('dead', null); });
+  }
+
+  function _pollUntilLive(attemptsLeft) {
+    if (attemptsLeft <= 0) { tunnelSetState('dead', null); return; }
+    setTimeout(function(){
+      fetch('/api/tunnel/status')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.alive && d.url) {
+            tunnelSetState('alive', d.url);
+          } else if (d.status === 'restarting') {
+            _pollUntilLive(attemptsLeft - 1);
+          } else {
+            tunnelSetState('dead', null);
+          }
+        })
+        .catch(function(){ _pollUntilLive(attemptsLeft - 1); });
+    }, 1000);
+  }
+
+  function tunnelCopy() {
+    if (!_tunnelUrl) return;
+    navigator.clipboard.writeText(_tunnelUrl).then(function(){
+      var btn = document.getElementById('tunnel-copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(function(){ btn.textContent = 'Copy'; }, 1200);
+    });
+  }
+
+  // Manual page refresh — spins the icon, then reloads
+  function manualRefresh(btn) {
+    btn.textContent = '↻ Refreshing…';
+    btn.disabled = true;
+    btn.style.color = 'var(--accent)';
+    btn.style.borderColor = 'var(--accent)';
+    setTimeout(function(){ location.reload(); }, 300);
+  }
+
+  // Check tunnel on load only — no polling, manual refresh handles updates
+  tunnelCheck();
+  </script>
+</body>
+</html>

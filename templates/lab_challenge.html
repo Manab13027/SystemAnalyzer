@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.name }} — Lab{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:20px;">
+  <a href="{{ url_for('lab.dashboard') }}" style="font-size:12px; color:var(--muted);">&#8592; Lab Dashboard</a>
+</div>
+
+<!-- Challenge header -->
+<div class="card" style="margin-bottom:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px;">
+    <div>
+      <h1 style="font-size:22px; font-weight:700; margin-bottom:8px;">{{ cfg.name }}</h1>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <span class="badge badge-info">{{ cfg.category }}</span>
+        <span class="badge {% if cfg.difficulty == 'Beginner' %}badge-low{% elif cfg.difficulty == 'Intermediate' %}badge-medium{% else %}badge-high{% endif %}">
+          {{ cfg.difficulty }}
+        </span>
+        <span class="badge badge-unknown">{{ cfg.points_total }} pts total</span>
+      </div>
+      <p style="color:var(--muted); font-size:13px; max-width:640px; line-height:1.6;">{{ cfg.description }}</p>
+    </div>
+
+    <!-- Container status + controls -->
+    <div style="min-width:200px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:16px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin-bottom:10px;">Container</div>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span id="status-dot" style="width:10px; height:10px; border-radius:50%; flex-shrink:0;
+          background:{% if status.status == 'running' %}var(--green){% else %}var(--muted){% endif %};
+          {% if status.status == 'running' %}box-shadow:0 0 8px var(--green);{% endif %}"></span>
+        <span id="status-text" style="font-weight:600; font-size:13px;">{{ status.status | capitalize }}</span>
+      </div>
+      {% if status.status == 'running' %}
+      <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+        <div>Port: <a href="http://localhost:{{ cfg.host_port }}" target="_blank" style="color:var(--accent);">{{ cfg.host_port }}</a></div>
+        <div>IP: <code>{{ cfg.network_ip }}</code></div>
+      </div>
+      {% endif %}
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        {% if status.status == 'running' %}
+        <button onclick="labStop(this)" class="btn btn-outline" style="font-size:12px; color:var(--red); border-color:var(--red); width:100%;">&#9632; Stop</button>
+        <button onclick="labReset(this)" class="btn btn-outline" style="font-size:12px; width:100%;">&#8635; Reset</button>
+        {% else %}
+        <button onclick="labStart(this)" class="btn btn-primary" style="font-size:12px; width:100%;">&#9654; Start Machine</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Access info when running -->
+{% if status.status == 'running' %}
+<div style="background:rgba(63,185,80,.08); border:1px solid rgba(63,185,80,.3); border-radius:8px; padding:14px 18px; margin-bottom:20px; font-size:13px;">
+  <strong style="color:var(--green);">Machine is running.</strong>
+  Access at <a href="http://localhost:{{ cfg.host_port }}" target="_blank">http://localhost:{{ cfg.host_port }}</a>
+  &nbsp;|&nbsp; Internal IP: <code>{{ cfg.network_ip }}</code>
+  &nbsp;|&nbsp; <a href="{{ url_for('target_detail', pixel_id='lab-' + challenge) }}" style="color:var(--accent);">View in SystemAnalyzer &#8599;</a>
+</div>
+{% endif %}
+
+<!-- Flags -->
+<div class="card-title" style="margin-bottom:14px;">Flags ({{ cfg.flags|length }})</div>
+
+{% set user_solves = progress.challenges[challenge].solved %}
+
+{% for fkey, flag in cfg.flags.items() %}
+{% set solved = fkey in user_solves %}
+<div class="card" style="margin-bottom:14px; {% if solved %}border-color:var(--green);{% endif %}">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+    <div style="flex:1; min-width:200px;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <span style="font-weight:700; font-size:14px;">{{ flag.name }}</span>
+        {% if solved %}
+        <span class="badge" style="background:rgba(63,185,80,.2); color:var(--green);">&#10003; Solved</span>
+        {% else %}
+        <span class="badge badge-unknown">{{ flag.points }} pts</span>
+        {% endif %}
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:10px;">{{ flag.description }}</p>
+
+      <!-- Hints collapsible -->
+      {% if flag.hints %}
+      <details style="font-size:12px; margin-bottom:10px;">
+        <summary style="cursor:pointer; color:var(--accent); user-select:none;">
+          &#128161; Hints ({{ flag.hints|length }})
+        </summary>
+        <ol style="margin-top:8px; padding-left:18px; color:var(--muted); line-height:1.8;">
+          {% for hint in flag.hints %}
+          <li>{{ hint }}</li>
+          {% endfor %}
+        </ol>
+      </details>
+      {% endif %}
+    </div>
+
+    <!-- Flag submission form -->
+    {% if not solved %}
+    <div style="min-width:280px;" id="flag-form-{{ fkey }}">
+      <form onsubmit="submitFlag(event, '{{ challenge }}', '{{ fkey }}')" style="display:flex; gap:8px; align-items:stretch;">
+        <input type="text" name="flag" placeholder="FLAG{...}" required
+               style="flex:1; padding:8px 12px; background:var(--bg); border:1px solid var(--border);
+                      border-radius:6px; color:var(--text); font-size:12px; font-family:monospace;">
+        <button type="submit" class="btn btn-primary" style="font-size:12px; white-space:nowrap;">Submit</button>
+      </form>
+      <div id="flag-msg-{{ fkey }}" style="font-size:12px; margin-top:6px; display:none;"></div>
+    </div>
+    {% else %}
+    <div style="color:var(--green); font-size:13px; font-weight:600;">+{{ flag.points }} pts</div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _challenge = '{{ challenge }}';
+
+function submitFlag(e, challenge, flagKey) {
+  e.preventDefault();
+  var form = e.target;
+  var input = form.querySelector('input[name=flag]');
+  var btn = form.querySelector('button[type=submit]');
+  var msgEl = document.getElementById('flag-msg-' + flagKey);
+  var data = new FormData();
+  data.append('flag', input.value.trim());
+
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  fetch('/lab/submit/' + challenge + '/' + flagKey, { method: 'POST', body: data })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      msgEl.style.display = 'block';
+      if (d.correct && !d.already_solved) {
+        msgEl.style.color = 'var(--green)';
+        msgEl.textContent = d.message;
+        setTimeout(function() { location.reload(); }, 1200);
+      } else if (d.already_solved) {
+        msgEl.style.color = 'var(--accent)';
+        msgEl.textContent = d.message;
+        btn.disabled = false;
+        btn.textContent = 'Submit';
+      } else {
+        msgEl.style.color = 'var(--red)';
+        msgEl.textContent = d.message;
+        input.value = '';
+        btn.disabled = false;
+        btn.textContent = 'Submit';
+      }
+    })
+    .catch(function() {
+      msgEl.style.display = 'block';
+      msgEl.style.color = 'var(--red)';
+      msgEl.textContent = 'Request failed.';
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+    });
+}
+
+function labStart(btn) {
+  btn.disabled = true; btn.textContent = 'Starting…';
+  fetch('/lab/start/' + _challenge, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'running') location.reload();
+      else { btn.textContent = d.error || 'Error'; btn.disabled = false; }
+    });
+}
+
+function labStop(btn) {
+  btn.disabled = true; btn.textContent = 'Stopping…';
+  fetch('/lab/stop/' + _challenge, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() { location.reload(); });
+}
+
+function labReset(btn) {
+  btn.disabled = true; btn.textContent = 'Resetting…';
+  fetch('/lab/reset/' + _challenge, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'running') location.reload();
+      else { btn.textContent = d.error || 'Error'; btn.disabled = false; }
+    });
+}
+</script>
+{% endblock %}

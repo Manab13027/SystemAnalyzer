@@ -1,0 +1,6 @@
+flask>=3.0.0
+requests>=2.31.0
+user-agents>=2.2.0
+geoip2>=4.7.0
+maxminddb>=2.5.0
+anthropic>=0.86.0

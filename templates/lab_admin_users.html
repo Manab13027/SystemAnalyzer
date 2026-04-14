@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Manage Users — Lab Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+  <div>
+    <a href="{{ url_for('lab.dashboard') }}" style="font-size:12px; color:var(--muted);">&#8592; Lab Dashboard</a>
+    <h1 style="font-size:20px; font-weight:700; margin-top:8px;">&#128100; Manage Users</h1>
+  </div>
+  <a href="{{ url_for('lab.register') }}" class="btn btn-primary" style="font-size:12px;">+ Add User</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div style="padding:10px 14px; border-radius:6px; margin-bottom:14px; font-size:13px;
+                background:{% if cat=='error' %}rgba(248,81,73,.15){% else %}rgba(63,185,80,.15){% endif %};
+                color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %}; border:1px solid currentColor;">
+      {{ msg }}
+    </div>
+  {% endfor %}
+{% endwith %}
+
+<div class="card">
+  {% if users %}
+  <table>
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Role</th>
+        <th>Created</th>
+        <th style="width:100px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="font-weight:600; {% if u.username == user.username %}color:var(--accent);{% endif %}">
+          {{ u.username }}
+          {% if u.username == user.username %}<span style="font-size:11px; color:var(--muted);">(you)</span>{% endif %}
+        </td>
+        <td>
+          <span class="badge {% if u.role == 'admin' %}badge-high{% else %}badge-info{% endif %}">
+            {{ u.role }}
+          </span>
+        </td>
+        <td style="color:var(--muted); font-size:12px;">{{ u.created_at[:16] }}</td>
+        <td>
+          {% if u.username != user.username %}
+          <form method="POST" action="{{ url_for('lab.admin_delete_user', username=u.username) }}"
+                onsubmit="return confirm('Delete user {{ u.username }}? This cannot be undone.');">
+            <button type="submit" class="btn btn-outline"
+                    style="font-size:11px; color:var(--red); border-color:var(--red); padding:4px 10px;">
+              Delete
+            </button>
+          </form>
+          {% else %}
+          <span style="font-size:11px; color:var(--muted);">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No users yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

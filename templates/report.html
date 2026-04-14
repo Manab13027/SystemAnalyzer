@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pentest Report — {{ fp.get('ip','Unknown') }}</title>
+  <style>
+    :root {
+      --accent: #1a56db;
+      --red:    #dc2626;
+      --orange: #ea580c;
+      --yellow: #ca8a04;
+      --green:  #16a34a;
+      --muted:  #6b7280;
+      --border: #e5e7eb;
+      --bg:     #f9fafb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px;
+           color: #111; background: #fff; line-height: 1.6; }
+
+    @media print {
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+      body { font-size: 11px; }
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .risk-badge, .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+
+    header {
+      background: #0f172a; color: #fff;
+      padding: 28px 40px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+    header .meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+    .risk-badge {
+      font-size: 13px; font-weight: 700; padding: 6px 18px;
+      border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;
+    }
+    .risk-Critical     { background: #7f1d1d; color: #fca5a5; }
+    .risk-High         { background: #7c2d12; color: #fdba74; }
+    .risk-Medium       { background: #78350f; color: #fde68a; }
+    .risk-Low          { background: #14532d; color: #86efac; }
+    .risk-Informational{ background: #1e3a5f; color: #93c5fd; }
+    .risk-unknown      { background: #374151; color: #9ca3af; }
+
+    .container { max-width: 960px; margin: 0 auto; padding: 32px 40px; }
+    section { margin-bottom: 32px; }
+    h2 {
+      font-size: 14px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: #0f172a;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 6px; margin-bottom: 14px;
+    }
+    h3 { font-size: 13px; font-weight: 600; color: #1e40af; margin-bottom: 6px; }
+    p  { margin-bottom: 10px; color: #374151; }
+
+    .card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px 20px; margin-bottom: 12px;
+    }
+    .card-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .card-row .card { flex: 1; min-width: 200px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    th {
+      background: #f1f5f9; text-align: left; padding: 7px 10px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+    }
+    td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px; text-transform: uppercase;
+    }
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-high     { background: #ffedd5; color: #9a3412; }
+    .badge-medium   { background: #fef9c3; color: #854d0e; }
+    .badge-low      { background: #dcfce7; color: #166534; }
+
+    ul.findings { list-style: none; padding: 0; }
+    ul.findings li {
+      padding: 6px 0 6px 22px; border-bottom: 1px solid var(--border);
+      position: relative; color: #374151;
+    }
+    ul.findings li:last-child { border-bottom: none; }
+    ul.findings li::before { content: "▸"; position: absolute; left: 4px; color: var(--accent); }
+
+    .remed-item {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+    }
+    .remed-item:last-child { border-bottom: none; }
+    .priority-tag {
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: 10px; white-space: nowrap; text-transform: uppercase;
+    }
+    .p-Critical, .p-High     { background: #fee2e2; color: #991b1b; }
+    .p-Medium                 { background: #fef9c3; color: #854d0e; }
+    .p-Low, .p-Informational  { background: #dcfce7; color: #166534; }
+
+    .chain { border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+    .chain-step { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; margin-bottom: 6px; }
+    .chain-step:last-child { margin-bottom: 0; }
+    .cve-tag { font-family: monospace; font-size: 11px; font-weight: 700; color: #1a56db; white-space: nowrap; }
+
+    .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .profile-item { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; }
+    .profile-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 3px; }
+    .profile-value { font-size: 13px; font-weight: 600; color: #0f172a; }
+
+    /* ── Loading skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .skel-line  { height: 14px; margin-bottom: 8px; }
+    .skel-short { width: 40%; }
+    .skel-med   { width: 70%; }
+    .skel-full  { width: 100%; }
+    .skel-block { height: 80px; width: 100%; margin-bottom: 8px; }
+
+    .loading-section {
+      padding: 20px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .generating-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--muted);
+      background: #f1f5f9; border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px; margin-bottom: 14px;
+    }
+    .spinner {
+      width: 12px; height: 12px;
+      border: 2px solid #d1d5db;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toolbar {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; gap: 8px; z-index: 100;
+    }
+    .btn { padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity .15s; }
+    .btn:hover { opacity: .85; }
+    .btn-print { background: #0f172a; color: #fff; }
+    .btn-back  { background: #e5e7eb; color: #374151; }
+
+    .confidential {
+      text-align: center; font-size: 11px; color: var(--muted);
+      border-top: 1px solid var(--border); padding-top: 12px; margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Cover Header ── -->
+<header>
+  <div>
+    <div style="font-size:11px; color:#64748b; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px;">
+      Penetration Test Intelligence Report
+    </div>
+    <h1>Target: {{ fp.get('ip') or 'Unknown IP' }}</h1>
+    <div class="meta">
+      {{ fp.get('os_family','?') }} · {{ fp.get('browser_family','?') }} · {{ fp.get('device_type','?') }}
+      &nbsp;|&nbsp; Generated: {{ generated_at }}
+      &nbsp;|&nbsp; Pixel ID: <code style="color:#94a3b8">{{ pixel_id[:16] }}…</code>
+    </div>
+  </div>
+  <div style="text-align:right;" id="risk-badge-wrap">
+    <div class="risk-badge risk-unknown" id="overall-risk-badge">Generating…</div>
+    <div style="font-size:11px; color:#64748b; margin-top:8px;">
+      {{ cves|length }} CVE{% if cves|length != 1 %}s{% endif %} detected
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Status bar -->
+  <div id="status-bar" class="generating-badge">
+    <div class="spinner"></div>
+    <span id="status-text">Generating AI report — this takes 30–60 seconds with a local model…</span>
+  </div>
+
+  <!-- ── 1. Executive Summary ── -->
+  <section id="sec-exec">
+    <h2>1. Executive Summary</h2>
+    <div id="exec-content" class="loading-section">
+      <div class="skeleton skel-line skel-full"></div>
+      <div class="skeleton skel-line skel-med"></div>
+      <div class="skeleton skel-line skel-full"></div>
+      <div class="skeleton skel-line skel-short"></div>
+    </div>
+  </section>
+
+  <!-- ── 2. Target Profile ── -->
+  <section id="sec-profile">
+    <h2>2. Target Profile</h2>
+    <div id="profile-content" class="loading-section">
+      <div class="skeleton skel-block"></div>
+      <div class="skeleton skel-line skel-med"></div>
+    </div>
+  </section>
+
+  <!-- ── 3. Technical Fingerprint ── (static — no LLM needed) -->
+  <section>
+    <h2>3. Technical Fingerprint</h2>
+    <div class="card-row">
+      <div class="card">
+        <h3>System</h3>
+        <table>
+          {% for label, val in [
+            ('IP Address',  fp.get('ip')),
+            ('OS',          (fp.get('os_family','') + ' ' + (fp.get('os_version') or '')).strip() or None),
+            ('Platform',    fp.get('platform')),
+            ('Architecture',fp.get('ua_architecture')),
+            ('Device Model',fp.get('ua_model') or fp.get('device_brand')),
+            ('CPU Cores',   fp.get('cpu_cores')),
+            ('RAM (GB)',    fp.get('memory_gb')),
+          ] %}{% if val %}
+          <tr><td style="color:var(--muted);width:40%">{{ label }}</td><td><strong>{{ val }}</strong></td></tr>
+          {% endif %}{% endfor %}
+        </table>
+      </div>
+      <div class="card">
+        <h3>Browser & Network</h3>
+        <table>
+          {% for label, val in [
+            ('Browser',     (fp.get('browser_family','') + ' ' + (fp.get('browser_version') or '')).strip() or None),
+            ('Device Type', fp.get('device_type')),
+            ('Screen',      fp.get('screen_res')),
+            ('Timezone',    fp.get('timezone')),
+            ('Language',    fp.get('language')),
+            ('Connection',  fp.get('connection_type')),
+            ('GPU',         fp.get('webgl_renderer')),
+          ] %}{% if val %}
+          <tr><td style="color:var(--muted);width:40%">{{ label }}</td><td><strong>{{ val }}</strong></td></tr>
+          {% endif %}{% endfor %}
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. Vulnerability Assessment ── -->
+  <section class="page-break">
+    <h2>4. Vulnerability Assessment</h2>
+    <div id="vuln-content" class="loading-section">
+      <div class="skeleton skel-line skel-full"></div>
+      <div class="skeleton skel-line skel-med"></div>
+    </div>
+    {% if cves %}
+    <table style="margin-top:14px;">
+      <thead>
+        <tr><th>CVE ID</th><th>Component</th><th>Version</th><th>CVSS</th><th>Severity</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        {% for c in cves|sort(attribute='cvss_score', reverse=True) %}
+        {% set sev = (c.cvss_severity or 'low')|lower %}
+        <tr>
+          <td><code style="font-size:11px;color:#1a56db;">{{ c.cve_id }}</code></td>
+          <td>{{ c.component or '—' }}</td>
+          <td>{{ c.version or '—' }}</td>
+          <td><strong>{{ "%.1f"|format(c.cvss_score) if c.cvss_score else '—' }}</strong></td>
+          <td><span class="badge badge-{{ sev }}">{{ c.cvss_severity or '—' }}</span></td>
+          <td style="max-width:280px;font-size:11px;color:#4b5563;">{{ (c.description or '')[:180] }}{% if (c.description or '')|length > 180 %}…{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted);">No CVEs detected for this target.</p>
+    {% endif %}
+  </section>
+
+  <!-- ── 5. Attack Scenario ── -->
+  <section id="sec-attack">
+    <h2>5. Attack Scenario & Chains</h2>
+    <div id="attack-content" class="loading-section">
+      <div class="skeleton skel-line skel-full"></div>
+      <div class="skeleton skel-line skel-med"></div>
+      <div class="skeleton skel-block"></div>
+    </div>
+  </section>
+
+  <!-- ── 6. Remediation ── -->
+  <section class="page-break" id="sec-remed">
+    <h2>6. Remediation Plan</h2>
+    <div id="remed-content" class="loading-section">
+      <div class="skeleton skel-block"></div>
+      <div class="skeleton skel-line skel-med"></div>
+    </div>
+  </section>
+
+  <!-- ── 7. Conclusion ── -->
+  <section id="sec-conclusion">
+    <h2>7. Conclusion</h2>
+    <div id="conclusion-content" class="loading-section">
+      <div class="skeleton skel-line skel-full"></div>
+      <div class="skeleton skel-line skel-med"></div>
+    </div>
+  </section>
+
+  <!-- ── Appendix: Hit Log ── -->
+  {% if hits %}
+  <section>
+    <h2>Appendix A — Pixel Hit Log</h2>
+    <table>
+      <thead><tr><th>Timestamp</th><th>IP</th><th>User Agent</th><th>Referrer</th></tr></thead>
+      <tbody>
+        {% for h in hits %}
+        <tr>
+          <td style="white-space:nowrap;font-size:11px;">{{ h.ts[:19].replace('T',' ') }}</td>
+          <td><code style="font-size:11px;">{{ h.ip or '—' }}</code></td>
+          <td style="font-size:10px;color:var(--muted);max-width:200px;word-break:break-all;">{{ (h.user_agent or '')[:80] }}</td>
+          <td style="font-size:11px;color:var(--muted);">{{ (h.referrer or '—')[:60] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <div class="confidential">
+    CONFIDENTIAL — For authorised penetration testing use only. Generated by SystemAnalyzer · {{ generated_at }}
+  </div>
+</div>
+
+<!-- ── Floating Toolbar ── -->
+<div class="toolbar no-print">
+  <button class="btn btn-back" onclick="history.back()">← Back</button>
+  <button class="btn btn-print" id="print-btn" onclick="window.print()" disabled
+          style="opacity:.5;cursor:not-allowed;">🖨 Generating…</button>
+</div>
+
+<script>
+var PIXEL_ID = '{{ pixel_id }}';
+
+// ── Skeleton helpers ──────────────────────────────────────────────────────
+
+function setStatus(text, done) {
+  var bar  = document.getElementById('status-bar');
+  var span = document.getElementById('status-text');
+  span.textContent = text;
+  if (done) {
+    bar.style.background  = '#f0fdf4';
+    bar.style.borderColor = '#86efac';
+    bar.style.color       = '#166534';
+    bar.innerHTML         = '✅ ' + text;
+  }
+}
+
+function showError(section, msg) {
+  document.getElementById(section).innerHTML =
+    '<p style="color:#dc2626;font-size:12px;">⚠ ' + msg + '</p>';
+}
+
+// ── Render helpers ────────────────────────────────────────────────────────
+
+function renderExec(r) {
+  var html = '';
+  if (r.exec_summary)    html += '<p>' + esc(r.exec_summary) + '</p>';
+  if (r.target_description) html += '<p>' + esc(r.target_description) + '</p>';
+  if (r.key_findings && r.key_findings.length) {
+    html += '<h3 style="margin-top:14px;">Key Findings</h3><ul class="findings">';
+    r.key_findings.forEach(function(f){ html += '<li>'+esc(f)+'</li>'; });
+    html += '</ul>';
+  }
+  document.getElementById('exec-content').innerHTML = html || '<p style="color:var(--muted)">No data.</p>';
+}
+
+function renderProfile(p) {
+  if (p.error) { showError('profile-content', p.error); return; }
+  var fields = [
+    ['Role',p.role],['Ownership',p.ownership],['Tech Level',p.tech_level],
+    ['Org Type',p.org_type],['Country',p.country],['City',p.city],
+    ['Work Hours',p.work_hours],['Attack Surface',p.attack_surface],['Confidence',p.confidence]
+  ];
+  var html = '<div class="profile-grid">';
+  fields.forEach(function(f){
+    if (!f[1] || f[1]==='null') return;
+    html += '<div class="profile-item"><div class="profile-label">'+f[0]+'</div>'
+          + '<div class="profile-value">'+esc(f[1])+'</div></div>';
+  });
+  html += '</div>';
+  if (p.profile_summary) html += '<p style="margin-top:14px;font-style:italic;color:#4b5563;">'+esc(p.profile_summary)+'</p>';
+  if (p.software_stack && p.software_stack.length) {
+    html += '<div style="margin-top:10px;"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);">Inferred Stack: </span>';
+    p.software_stack.forEach(function(s){
+      html += '<span style="display:inline-block;margin:3px 4px 0 0;background:#eff6ff;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;">'+esc(s)+'</span>';
+    });
+    html += '</div>';
+  }
+  if (p.top_vectors && p.top_vectors.length) {
+    html += '<div style="margin-top:12px;"><h3>Top Attack Vectors for This Profile</h3><ul class="findings">';
+    p.top_vectors.forEach(function(v){ html += '<li>'+esc(v)+'</li>'; });
+    html += '</ul></div>';
+  }
+  document.getElementById('profile-content').innerHTML = html;
+}
+
+function renderVuln(r) {
+  var html = '';
+  if (r.vulnerability_narrative) html = '<p>'+esc(r.vulnerability_narrative)+'</p>';
+  document.getElementById('vuln-content').innerHTML = html || '';
+  if (!html) document.getElementById('vuln-content').style.display = 'none';
+}
+
+function renderAttack(r, paths) {
+  var html = '';
+  if (r.attack_scenario) html += '<p>'+esc(r.attack_scenario)+'</p>';
+  if (paths && paths.length) {
+    html += '<h3 style="margin-top:14px;">Attack Chains</h3>';
+    paths.forEach(function(p){
+      var col = p.feasibility==='Easy'?'#991b1b': p.feasibility==='Medium'?'#854d0e':'#166534';
+      html += '<div class="chain"><div style="display:flex;justify-content:space-between;margin-bottom:8px;">'
+        + '<strong>'+esc(p.name)+'</strong>'
+        + '<span class="badge" style="background:#f9fafb;color:'+col+'">'+esc(p.feasibility)+' Feasibility</span>'
+        + '</div>';
+      (p.steps||[]).forEach(function(s){
+        html += '<div class="chain-step"><span class="cve-tag">'+esc(s.cve)+'</span><span style="color:#4b5563">→ '+esc(s.role)+'</span></div>';
+      });
+      html += '</div>';
+    });
+  }
+  document.getElementById('attack-content').innerHTML = html || '<p style="color:var(--muted)">No attack scenario data.</p>';
+}
+
+function renderRemed(r) {
+  var html = '';
+  if (r.immediate_actions && r.immediate_actions.length) {
+    html += '<div class="card" style="border-color:#fca5a5;background:#fff7f7;margin-bottom:12px;">'
+      + '<h3 style="color:#991b1b;">⚡ Immediate Actions Required</h3>'
+      + '<ul class="findings" style="margin-top:8px;">';
+    r.immediate_actions.forEach(function(a){ html += '<li>'+esc(a)+'</li>'; });
+    html += '</ul></div>';
+  }
+  if (r.remediation_plan && r.remediation_plan.length) {
+    html += '<div class="card"><h3>Full Remediation Roadmap</h3>';
+    r.remediation_plan.forEach(function(item){
+      html += '<div class="remed-item">'
+        + '<span class="priority-tag p-'+esc(item.priority)+'">'+esc(item.priority)+'</span>'
+        + '<div style="flex:1"><div style="font-weight:600;color:#0f172a">'+esc(item.action)+'</div>'
+        + (item.effort ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">Effort: '+esc(item.effort)+'</div>' : '')
+        + '</div></div>';
+    });
+    html += '</div>';
+  }
+  document.getElementById('remed-content').innerHTML = html || '<p style="color:var(--muted)">No remediation data.</p>';
+}
+
+function renderConclusion(r) {
+  var html = r.conclusion ? '<p>'+esc(r.conclusion)+'</p>' : '<p style="color:var(--muted)">No conclusion data.</p>';
+  document.getElementById('conclusion-content').innerHTML = html;
+}
+
+function renderRiskBadge(risk) {
+  var badge = document.getElementById('overall-risk-badge');
+  badge.textContent  = risk + ' Risk';
+  badge.className    = 'risk-badge risk-' + risk;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Main: fetch report data ───────────────────────────────────────────────
+
+setStatus('Running AI analysis — profile + attack paths in parallel, then writing report…');
+
+fetch('/api/report-data/' + PIXEL_ID)
+  .then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
+  .then(function(d) {
+    var r = d.report || {};
+    var p = d.profile || {};
+
+    // Update risk badge
+    renderRiskBadge(r.overall_risk || 'Unknown');
+
+    // Populate all sections
+    renderExec(r);
+    renderProfile(p);
+    renderVuln(r);
+    renderAttack(r, d.paths || []);
+    renderRemed(r);
+    renderConclusion(r);
+
+    // Enable print button
+    var printBtn = document.getElementById('print-btn');
+    printBtn.disabled = false;
+    printBtn.style.opacity = '1';
+    printBtn.style.cursor  = 'pointer';
+    printBtn.textContent   = '🖨 Print / Save PDF';
+
+    setStatus('Report generated successfully · ' + (d.generated_at || ''), true);
+  })
+  .catch(function(e) {
+    setStatus('⚠ Error generating report: ' + e, false);
+    document.getElementById('status-bar').style.background = '#fff1f2';
+    document.getElementById('status-bar').style.borderColor = '#fca5a5';
+    document.getElementById('status-bar').style.color = '#dc2626';
+  });
+</script>
+</body>
+</html>

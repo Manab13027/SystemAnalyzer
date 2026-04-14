@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Lab Dashboard — SystemAnalyzer{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+  <div>
+    <h1 style="font-size:20px; font-weight:700; color:var(--text);">&#127981; Vulnerability Lab</h1>
+    <p style="color:var(--muted); font-size:13px; margin-top:4px;">
+      Logged in as <strong style="color:var(--accent);">{{ user.username }}</strong>
+      {% if user.role == 'admin' %}<span class="badge badge-high" style="margin-left:6px;">admin</span>{% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center;">
+    {% if user.role == 'admin' %}
+    <a href="{{ url_for('lab.admin_users') }}" class="btn btn-outline" style="font-size:12px;">&#128100; Manage Users</a>
+    {% endif %}
+    <a href="{{ url_for('lab.scoreboard') }}" class="btn btn-outline" style="font-size:12px;">&#127942; Scoreboard</a>
+    <a href="{{ url_for('lab.logout') }}" class="btn btn-outline" style="font-size:12px; color:var(--muted);">Sign Out</a>
+  </div>
+</div>
+
+{% if not docker_available %}
+<div style="background:rgba(248,81,73,.1); border:1px solid var(--red); border-radius:8px; padding:14px 18px; margin-bottom:20px; font-size:13px; color:var(--red);">
+  &#9888; Docker is not available on this host. Install Docker Desktop to start lab containers.
+  Container controls are disabled — you can still view challenges and submit flags manually.
+</div>
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div style="padding:10px 14px; border-radius:6px; margin-bottom:14px; font-size:13px;
+                background:{% if cat=='error' %}rgba(248,81,73,.15){% elif cat=='success' %}rgba(63,185,80,.15){% else %}rgba(88,166,255,.15){% endif %};
+                color:{% if cat=='error' %}var(--red){% elif cat=='success' %}var(--green){% else %}var(--accent){% endif %}; border:1px solid currentColor;">
+      {{ msg }}
+    </div>
+  {% endfor %}
+{% endwith %}
+
+<!-- Stats row -->
+<div class="grid-3" style="margin-bottom:24px;">
+  <div class="stat-box">
+    <div class="stat-value">{{ progress.total_points }}</div>
+    <div class="stat-label">Your Points</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value">{{ progress.total_flags_solved }}</div>
+    <div class="stat-label">Flags Captured</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" style="font-size:20px;">
+      {% set running = namespace(count=0) %}
+      {% for name, st in statuses.items() %}{% if st.status == 'running' %}{% set running.count = running.count + 1 %}{% endif %}{% endfor %}
+      {{ running.count }} / {{ challenges|length }}
+    </div>
+    <div class="stat-label">Machines Running</div>
+  </div>
+</div>
+
+<!-- Challenge grid -->
+<div class="card-title" style="margin-bottom:14px; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:var(--muted);">Challenges</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; margin-bottom:32px;">
+  {% for cname, cfg in challenges.items() %}
+  {% set st = statuses[cname] %}
+  {% set prog = progress.challenges[cname] %}
+  <div class="card" style="margin-bottom:0; position:relative; {% if prog.complete %}border-color:var(--green);{% endif %}">
+
+    <!-- Status dot -->
+    <div style="position:absolute; top:14px; right:14px; display:flex; align-items:center; gap:6px;">
+      <span style="width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0;
+        background:{% if st.status == 'running' %}var(--green){% elif st.status == 'error' %}var(--red){% else %}var(--muted){% endif %};
+        {% if st.status == 'running' %}box-shadow:0 0 6px var(--green);{% endif %}">
+      </span>
+      <span style="font-size:11px; color:var(--muted);">{{ st.status }}</span>
+    </div>
+
+    <!-- Header -->
+    <div style="margin-bottom:10px; padding-right:80px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <span style="font-size:15px; font-weight:700;">{{ cfg.name }}</span>
+        {% if prog.complete %}
+        <span class="badge" style="background:rgba(63,185,80,.2); color:var(--green);">&#10003; Complete</span>
+        {% endif %}
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <span class="badge badge-info">{{ cfg.category }}</span>
+        <span class="badge {% if cfg.difficulty == 'Beginner' %}badge-low{% elif cfg.difficulty == 'Intermediate' %}badge-medium{% else %}badge-high{% endif %}">
+          {{ cfg.difficulty }}
+        </span>
+        <span class="badge badge-unknown">{{ cfg.points_total }} pts total</span>
+      </div>
+    </div>
+
+    <p style="font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.5;">
+      {{ cfg.description[:110] }}{% if cfg.description|length > 110 %}…{% endif %}
+    </p>
+
+    <!-- Flag progress bar -->
+    <div style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:4px;">
+        <span>Flags: {{ prog.solved_flags }} / {{ prog.total_flags }}</span>
+        <span>{{ prog.challenge_points }} pts earned</span>
+      </div>
+      <div class="cvss-bar">
+        <div class="cvss-fill" style="width:{% if prog.total_flags > 0 %}{{ (prog.solved_flags / prog.total_flags * 100)|int }}{% else %}0{% endif %}%;
+          background:{% if prog.complete %}var(--green){% else %}var(--accent){% endif %};"></div>
+      </div>
+    </div>
+
+    <!-- Port info -->
+    {% if st.status == 'running' %}
+    <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+      &#128279; <a href="http://localhost:{{ cfg.host_port }}" target="_blank" style="color:var(--accent);">
+        localhost:{{ cfg.host_port }}
+      </a>
+      &nbsp;|&nbsp; IP: <code>{{ cfg.network_ip }}</code>
+      {% if st.uptime_seconds is defined %}
+      &nbsp;|&nbsp; Up {{ (st.uptime_seconds // 60) }}m
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Action buttons -->
+    <div style="display:flex; gap:8px;">
+      <a href="{{ url_for('lab.challenge_detail', challenge=cname) }}" class="btn btn-outline" style="font-size:12px; flex:1; text-align:center;">
+        View Flags
+      </a>
+      {% if docker_available %}
+        {% if st.status == 'running' %}
+        <button onclick="labStop('{{ cname }}', this)" class="btn btn-outline" style="font-size:12px; color:var(--red); border-color:var(--red);">Stop</button>
+        <button onclick="labReset('{{ cname }}', this)" class="btn btn-outline" style="font-size:12px;">Reset</button>
+        {% else %}
+        <button onclick="labStart('{{ cname }}', this)" class="btn btn-primary" style="font-size:12px;">&#9654; Start</button>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Scoreboard preview -->
+<div class="card">
+  <div class="card-title">&#127942; Scoreboard</div>
+  {% if scoreboard %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Player</th>
+        <th>Flags</th>
+        <th>Points</th>
+        <th>Last Solve</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i, row in scoreboard|enumerate %}
+      <tr {% if row.username == user.username %}style="background:rgba(88,166,255,.06);"{% endif %}>
+        <td style="color:var(--muted); font-weight:700;">
+          {% if i == 0 %}&#129351;{% elif i == 1 %}&#129352;{% elif i == 2 %}&#129353;{% else %}{{ i+1 }}{% endif %}
+        </td>
+        <td style="font-weight:600; {% if row.username == user.username %}color:var(--accent);{% endif %}">
+          {{ row.username }}{% if row.username == user.username %} <span style="font-size:10px; color:var(--muted);">(you)</span>{% endif %}
+        </td>
+        <td>{{ row.flags_solved }}</td>
+        <td style="font-weight:700; color:var(--green);">{{ row.total_points }}</td>
+        <td style="color:var(--muted); font-size:12px;">{{ row.last_solve[:16] if row.last_solve else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No flags submitted yet. Be the first!</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function labAction(challenge, action, btn, label) {
+  var orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = label;
+
+  fetch('/lab/' + action + '/' + challenge, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.status === 'running' || d.status === 'stopped') {
+        location.reload();
+      } else {
+        btn.textContent = d.error || 'Error';
+        btn.disabled = false;
+        setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 3000);
+      }
+    })
+    .catch(function() {
+      btn.textContent = 'Error';
+      setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 3000);
+    });
+}
+
+function labStart(c, btn) { labAction(c, 'start', btn, 'Starting…'); }
+function labStop(c, btn)  { labAction(c, 'stop',  btn, 'Stopping…'); }
+function labReset(c, btn) { labAction(c, 'reset', btn, 'Resetting…'); }
+</script>
+{% endblock %}
