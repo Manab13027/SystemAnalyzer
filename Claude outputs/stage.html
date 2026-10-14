@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Defender Stage</title>
+<style>
+  :root{
+    --bg:#000600; --ink:#00ff66; --dim:#0a9b42; --faint:#064d24;
+    --panel:#02140a; --line:rgba(0,255,102,.22);
+    --amber:#ffd400; --orange:#ff9d00; --red:#ff3b3b; --crit:#ff00a8;
+    --mono:"DejaVu Sans Mono","Courier New",monospace;
+    --disp:"DejaVu Sans","Arial Black",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--mono)}
+  #rain{position:absolute;inset:0;z-index:0;opacity:.22}
+  #stage{position:absolute;inset:0;z-index:1}
+  .dim{transition:none}
+  .panel{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:inset 0 0 40px rgba(0,255,102,.05)}
+  .ph{font-family:var(--disp);font-weight:bold;letter-spacing:3px;color:#9dffc1;font-size:15px;
+    padding:12px 16px;border-bottom:1px dashed var(--faint)}
+  .pb{padding:12px 16px;font-size:15px}
+
+  /* top bar */
+  #top{position:absolute;left:30px;top:22px;width:1860px;height:66px;display:flex;align-items:center;
+    justify-content:space-between;padding:0 22px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+  #brand{display:flex;align-items:center;gap:14px}
+  #brand .logo{width:34px;height:34px;border:2px solid var(--ink);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:18px;box-shadow:0 0 14px rgba(0,255,102,.4)}
+  #brand h1{font-family:var(--disp);font-weight:bold;letter-spacing:7px;font-size:26px;color:#cfffe2;text-shadow:0 0 12px rgba(0,255,102,.6)}
+  #brand .sub{font-size:11px;letter-spacing:3px;color:var(--dim);margin-top:2px}
+  #topright{display:flex;align-items:center;gap:14px}
+  .chip{border:1px solid var(--line);border-radius:5px;padding:7px 12px;font-size:12px;letter-spacing:1px;color:var(--ink);background:rgba(0,0,0,.35)}
+  #scanbtn{border:1px solid var(--ink);border-radius:6px;padding:9px 16px;font-size:13px;letter-spacing:2px;color:#001a08;background:var(--ink);font-weight:bold}
+
+  /* row A */
+  #ports{left:30px;top:100px;width:600px;height:400px}
+  #gauge{left:650px;top:100px;width:600px;height:400px}
+  #vuln{left:1270px;top:100px;width:620px;height:400px}
+  /* row B */
+  #exposure{left:30px;top:520px;width:440px;height:300px}
+  #outbound{left:490px;top:520px;width:430px;height:300px}
+  #feed{left:940px;top:520px;width:480px;height:300px}
+  #checks{left:1440px;top:520px;width:450px;height:300px}
+  /* row C */
+  #advisor{left:30px;top:840px;width:1860px;height:210px}
+
+  /* ports table */
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:11px;letter-spacing:1px;color:var(--dim);padding:6px 8px;border-bottom:1px solid var(--faint)}
+  td{font-size:13px;padding:7px 8px;border-bottom:1px solid rgba(6,77,36,.5)}
+  td .svc{color:var(--dim);font-size:11px}
+  .badge{font-size:10px;letter-spacing:1px;padding:2px 8px;border-radius:3px;border:1px solid;white-space:nowrap}
+  .b-crit{color:var(--crit);border-color:var(--crit)} .b-high{color:var(--orange);border-color:var(--orange)}
+  .b-med{color:var(--amber);border-color:var(--amber)} .b-low{color:#9cff5a;border-color:#9cff5a}
+  .verdict{font-size:11px;letter-spacing:1px;padding:2px 8px;border-radius:3px;border:1px solid var(--faint);color:var(--dim)}
+  tr.row4444 td{background:rgba(255,0,168,.07)}
+
+  /* gauge */
+  .gwrap{display:flex;align-items:center;gap:26px;padding:26px 20px}
+  .donut{position:relative;width:200px;height:200px}
+  .donut svg{transform:rotate(-90deg)}
+  .gval{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gval .v{font-family:var(--disp);font-weight:bold;font-size:40px;letter-spacing:2px}
+  .gval .l{font-size:11px;letter-spacing:3px;color:var(--dim);margin-top:4px}
+  .legend{font-size:14px;line-height:2.1}
+  .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:10px;vertical-align:middle}
+
+  /* vuln bars */
+  .bars{display:flex;align-items:flex-end;gap:30px;height:210px;padding:24px 28px 0}
+  .bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .bar .col{width:68px;border-radius:4px 4px 0 0}
+  .bar .lab{font-size:11px;letter-spacing:1px;margin-top:8px}
+  .bar .n{font-size:12px;color:var(--dim);margin-top:2px}
+  .vhead{font-family:var(--disp);font-weight:bold;font-size:30px;padding:14px 20px 0}
+  .vsub{font-size:12px;color:var(--dim);padding:2px 20px 0}
+
+  /* outbound / checks list */
+  .li{display:flex;justify-content:space-between;font-size:14px;padding:6px 2px}
+  .li .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:10px}
+
+  /* feed */
+  .alert{border:1px solid var(--faint);border-left-width:4px;border-radius:4px;padding:8px 10px;margin-bottom:8px;background:rgba(0,0,0,.3)}
+  .alert .t{font-size:13px;color:#c7ffdd}
+  .alert .m{font-size:11px;color:var(--dim);margin-top:2px}
+  .la-crit{border-left-color:var(--crit)} .la-high{border-left-color:var(--orange)} .la-med{border-left-color:var(--amber)}
+
+  /* advisor */
+  .advgrid{display:flex;gap:30px;padding:14px 20px}
+  .plan{flex:1.4}
+  .ask{flex:1}
+  .pitem{display:flex;align-items:center;gap:10px;font-size:14px;padding:6px 0;border-bottom:1px solid rgba(6,77,36,.4);opacity:0}
+  .pnum{color:var(--crit);font-weight:bold}
+  .askbox{border:1px solid var(--faint);border-radius:5px;padding:10px 12px;font-size:14px;color:#aef2c6;min-height:40px}
+  .answer{font-size:13px;color:#d7ffe6;margin-top:10px;line-height:1.5;opacity:0}
+
+  /* overlays */
+  #dimlayer{position:absolute;inset:0;z-index:5;background:rgba(0,4,0,.62);opacity:0;pointer-events:none}
+  #spot{position:absolute;z-index:6;border:2px solid var(--ink);border-radius:10px;box-shadow:0 0 26px rgba(0,255,102,.55),0 0 0 3000px rgba(0,4,0,.001);opacity:0;transition:none}
+  #cursor{position:absolute;z-index:40;width:26px;height:26px;pointer-events:none;filter:drop-shadow(0 0 4px rgba(0,255,102,.8))}
+  #lower{position:absolute;left:46px;bottom:150px;z-index:30;display:flex;align-items:center;gap:0;opacity:0}
+  #lower .accent{width:6px;height:64px;background:var(--amber);box-shadow:0 0 14px var(--amber)}
+  #lower .ltext{background:rgba(0,10,4,.86);border:1px solid var(--line);border-left:none;padding:12px 26px}
+  #lower .lpart{font-family:var(--disp);font-weight:bold;letter-spacing:4px;font-size:22px;color:#eafff2;text-shadow:0 0 12px rgba(0,255,102,.5)}
+  #caption{position:absolute;left:50%;transform:translateX(-50%);bottom:54px;z-index:31;max-width:1500px;text-align:center}
+  #caption span{background:rgba(0,8,3,.82);border:1px solid var(--line);border-radius:6px;padding:12px 26px;
+    font-size:26px;letter-spacing:.5px;color:#eafff2;line-height:1.35;box-shadow:0 0 24px rgba(0,0,0,.6)}
+  #scanoverlay{position:absolute;left:650px;top:100px;width:600px;height:400px;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
+  #scanoverlay .ring{width:150px;height:150px;border:5px solid var(--faint);border-top-color:var(--ink);border-radius:50%}
+  #scanoverlay .txt{margin-top:18px;font-size:16px;letter-spacing:3px;color:var(--ink)}
+  #popover{position:absolute;z-index:25;width:420px;background:#021007;border:1px solid var(--crit);border-radius:8px;padding:14px 16px;box-shadow:0 0 30px rgba(255,0,168,.35);opacity:0}
+  #popover .pt{font-size:14px;color:#ffd0ec;font-weight:bold}
+  #popover .pm{font-size:12px;color:#cfe;margin-top:6px;line-height:1.5}
+  #popover .cmd{margin-top:10px;background:#000;border:1px solid var(--faint);border-radius:4px;padding:8px;font-size:12px;color:var(--ink)}
+  #popover .copy{display:inline-block;margin-top:8px;border:1px solid var(--ink);border-radius:3px;padding:3px 10px;font-size:11px;letter-spacing:1px;color:var(--ink)}
+  #popover .copy.done{color:var(--amber);border-color:var(--amber)}
+</style>
+</head>
+<body>
+<canvas id="rain" width="1920" height="1080"></canvas>
+<div id="stage">
+  <div id="top">
+    <div id="brand">
+      <div class="logo">&#9731;</div>
+      <div><h1>DEFENDER</h1><div class="sub">AI-POWERED ATTACK DETECTION &amp; MITIGATION</div></div>
+    </div>
+    <div id="topright">
+      <div class="chip" id="hostchip">WS-FINANCE-07</div>
+      <div class="chip" id="clock">ENGINE ONLINE</div>
+      <div id="scanbtn">&#9650; SCAN NOW</div>
+    </div>
+  </div>
+
+  <div class="panel" id="ports">
+    <div class="ph">TOP EXPOSED PORTS &nbsp;<span style="color:var(--dim);font-weight:normal;letter-spacing:1px">(by risk)</span></div>
+    <div class="pb" style="padding:0 8px">
+      <table><thead><tr><th>PORT</th><th>APPLICATION</th><th>RISK</th><th>ADVICE</th></tr></thead><tbody id="portbody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="panel" id="gauge">
+    <div class="ph">THREAT LEVEL</div>
+    <div class="gwrap">
+      <div class="donut">
+        <svg width="200" height="200" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="86" fill="none" stroke="#0a3a1e" stroke-width="16"/>
+          <circle id="gring" cx="100" cy="100" r="86" fill="none" stroke="var(--crit)" stroke-width="16"
+            stroke-linecap="round" stroke-dasharray="540" stroke-dashoffset="80"/>
+        </svg>
+        <div class="gval"><div class="v" id="gword">CRITICAL</div><div class="l" id="gsub">7 critical findings</div></div>
+      </div>
+      <div class="legend" id="glegend"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="vuln">
+    <div class="ph">VULNERABILITY STATUS BOARD</div>
+    <div class="vhead" id="vopen">10 Open</div>
+    <div class="vsub">2 actively exploited &middot; 184 apps checked</div>
+    <div class="bars" id="vbars"></div>
+  </div>
+
+  <div class="panel" id="exposure">
+    <div class="ph">PORT EXPOSURE</div>
+    <div class="pb" id="expbody"></div>
+  </div>
+  <div class="panel" id="outbound">
+    <div class="ph">OUTBOUND CONNECTIONS</div>
+    <div class="pb" id="outbody"></div>
+  </div>
+  <div class="panel" id="feed">
+    <div class="ph">LIVE ALERT FEED</div>
+    <div class="pb" id="feedbody" style="max-height:230px;overflow:hidden"></div>
+  </div>
+  <div class="panel" id="checks">
+    <div class="ph">SYSTEM CHECKS</div>
+    <div class="pb" id="checkbody"></div>
+  </div>
+
+  <div class="panel" id="advisor">
+    <div class="ph">AI ADVISOR &nbsp;//&nbsp; PRIORITIZED RESPONSE</div>
+    <div class="advgrid">
+      <div class="plan"><div style="font-size:11px;letter-spacing:2px;color:var(--amber);margin-bottom:6px">ACTION PLAN (IMPACT &divide; EFFORT)</div><div id="planlist"></div></div>
+      <div class="ask"><div style="font-size:11px;letter-spacing:2px;color:var(--amber);margin-bottom:6px">ASK THE ADVISOR</div>
+        <div class="askbox" id="askbox">&nbsp;</div><div class="answer" id="answer"></div></div>
+    </div>
+  </div>
+
+  <div id="dimlayer"></div>
+  <div id="spot"></div>
+  <div id="scanoverlay"><div class="ring" id="scanring"></div><div class="txt" id="scantxt">SCANNING THIS MACHINE…</div></div>
+  <div id="popover"><div class="pt" id="poptitle"></div><div class="pm" id="popmsg"></div><div class="cmd" id="popcmd"></div><span class="copy" id="popcopy">COPY</span></div>
+  <div id="lower"><div class="accent"></div><div class="ltext"><div class="lpart" id="lpart">PART 1</div></div></div>
+  <div id="caption"><span id="captext"></span></div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M3 2 L3 20 L8 15 L11 22 L14 21 L11 14 L18 14 Z" fill="#001a08" stroke="#00ff66" stroke-width="1.5"/></svg>
+</div>
+<script>
+const TL = __TIMELINE__;
+const W=1920,H=1080;
+
+/* ---------- static content ---------- */
+const PORTS=[
+ ["TCP 4444","Metasploit default","svc_helper.exe","CRITICAL","crit","Close","row4444"],
+ ["TCP 445","SMB","System","CRITICAL","crit","Close",""],
+ ["TCP 3389","RDP","svchost.exe","CRITICAL","crit","Close",""],
+ ["TCP 139","NetBIOS","System","HIGH","high","Close",""],
+ ["TCP 135","MS RPC","svchost.exe","HIGH","high","Close",""],
+ ["UDP 1900","SSDP/UPnP","svchost.exe","MEDIUM","med","Close",""],
+ ["TCP 8080","HTTP alt","node.exe","MEDIUM","med","Review",""],
+ ["TCP 7680","Unknown","svchost.exe","LOW","low","Keep",""],
+];
+document.getElementById('portbody').innerHTML=PORTS.map(p=>
+ `<tr class="${p[6]}"><td><b>${p[0]}</b><div class="svc">${p[1]}</div></td><td>${p[2]}</td>
+  <td><span class="badge b-${p[4]}">${p[3]}</span></td><td><span class="verdict">${p[5]}</span></td></tr>`).join('');
+
+document.getElementById('glegend').innerHTML=[
+ ["4","Critical","var(--crit)"],["4","High","var(--orange)"],["2","Medium","var(--amber)"],
+ ["6","Ports to close","#8a7bff"],["1","Bad connections","var(--red)"]
+].map(x=>`<div><span class="dot" style="background:${x[2]}"></span>${x[0]} &nbsp; ${x[1]}</div>`).join('');
+
+const VB=[["Critical","var(--crit)",200,"4 open"],["High","var(--orange)",200,"4 open"],["Medium","var(--amber)",120,"2 open"],["Low","#2b8cff",14,"0 open"]];
+document.getElementById('vbars').innerHTML=VB.map(b=>
+ `<div class="bar"><div class="col" style="height:${b[2]}px;background:${b[1]};box-shadow:0 0 16px ${b[1]}"></div>
+  <div class="lab" style="color:${b[1]}">${b[0]}</div><div class="n">${b[3]}</div></div>`).join('');
+
+function donutText(id,val,label){document.getElementById(id).innerHTML=
+ `<div style="text-align:center;padding:30px 0"><div style="font-family:var(--disp);font-weight:bold;font-size:40px">${val}</div>
+  <div style="font-size:11px;letter-spacing:3px;color:var(--dim);margin-top:4px">${label}</div></div>`;}
+donutText('expbody','12','PORTS');
+document.getElementById('outbody').innerHTML=[
+ ["1","Malicious","var(--crit)"],["2","Suspicious","var(--amber)"],["1","New destination","#8a7bff"],
+ ["0","Blocked","var(--dim)"],["7","Normal","var(--ink)"]
+].map(x=>`<div class="li"><span><span class="dot" style="background:${x[2]}"></span>${x[1]}</span><b>${x[0]}</b></div>`).join('');
+document.getElementById('checkbody').innerHTML=
+ `<div style="text-align:center;padding:14px 0"><div style="font-family:var(--disp);font-weight:bold;font-size:40px">12</div>
+  <div style="font-size:11px;letter-spacing:3px;color:var(--dim)">CHECKS</div>
+  <div style="margin-top:14px;font-size:14px"><span style="color:var(--red)">&#9679; 10 Failed</span> &nbsp;&nbsp; <span style="color:var(--ink)">&#9679; 2 Passed</span></div></div>`;
+
+const FEED=[
+ ["Credential stuffing from 185.23.44.9","crit","[log] 24 failed auths"],
+ ["CVE-2024-6387 affects OpenSSH 9.2","crit","[vuln] CVSS 8.1"],
+ ["Reverse shell: bash → 185.23.44.9:4444","crit","[endpoint] /dev/tcp"],
+ ["RDP listening (all) — CLOSE","high","[ports] tcp/3389"],
+ ["Likely AI-generated phishing","high","[content] gmai1.com"],
+];
+document.getElementById('feedbody').innerHTML=FEED.map(a=>
+ `<div class="alert la-${a[1]}"><div class="t">&#9888; ${a[0]}</div><div class="m">${a[2]}</div></div>`).join('');
+
+const PLAN=[
+ "RDP listening (all) — put behind VPN/MFA",
+ "Close Metasploit port 4444 (reverse shell)",
+ "Patch OpenSSH — CVE-2024-6387 (exploited)",
+ "Enable host firewall + disk encryption",
+ "Block outbound to crypto-mining pool",
+];
+document.getElementById('planlist').innerHTML=PLAN.map((p,i)=>
+ `<div class="pitem" id="pi${i}"><span class="pnum">${i+1}.</span><span>${p}</span></div>`).join('');
+
+/* ---------- act → focus target / behavior ---------- */
+const ACT={
+ intro1:{focus:null}, intro2:{focus:null}, intro3:{focus:null},
+ dash_all:{focus:null}, dash_gauge:{focus:'#gauge'}, dash_ports:{focus:'#ports'},
+ dash_vuln:{focus:'#vuln'}, dash_out:{focus:'#outbound'}, dash_feed:{focus:'#feed'},
+ dash_modules:{focus:null,cursor:'#scanbtn'}, dash_theme:{focus:null},
+ scan_btn:{focus:'#scanbtn',cursor:'#scanbtn'}, scan_run:{focus:null,scan:true},
+ scan_done:{focus:'#gauge'},
+ ports_focus:{focus:'#ports'}, port_row:{focus:'#ports',cursor:'.row4444'},
+ port_detail:{focus:'#ports',pop:'port'}, port_verdict:{focus:'#ports',pop:'port'},
+ vuln_focus:{focus:'#vuln'}, vuln_patch:{focus:'#vuln'}, vuln_cve:{focus:'#feed'},
+ vuln_fix:{focus:'#feed',pop:'cve'}, vuln_score:{focus:'#vuln'},
+ out_focus:{focus:'#outbound'}, out_anom:{focus:'#outbound'}, out_base:{focus:'#outbound'}, out_block:{focus:'#outbound'},
+ logs:{focus:'#feed'}, phish:{focus:'#feed'}, endpoint:{focus:'#feed'}, llm:{focus:'#feed'},
+ resolve:{focus:'#feed',pop:'cve'}, resolve_copy:{focus:'#feed',pop:'cve',copy:true},
+ advisor_plan:{focus:'#advisor',plan:true}, advisor_ask:{focus:'#advisor',ask:true},
+ advisor_ollama:{focus:'#advisor',ask:true}, advisor_refresh:{focus:'#advisor',plan:true},
+ outro:{focus:null}, outro_end:{focus:null},
+};
+const CHAPTER_SHORT={ "INTRO":"INTRO","PART 1 — THE DASHBOARD":"PART 1  ·  DASHBOARD",
+ "PART 2 — SCANNING A MACHINE":"PART 2  ·  SCAN","PART 3 — PORT EXPOSURE":"PART 3  ·  PORTS",
+ "PART 4 — VULNERABILITIES":"PART 4  ·  VULNERABILITIES","PART 5 — OUTBOUND MONITOR":"PART 5  ·  OUTBOUND",
+ "PART 6 — MORE DETECTION":"PART 6  ·  DETECTION","PART 7 — RESOLVE":"PART 7  ·  RESOLVE",
+ "PART 8 — THE AI ADVISOR":"PART 8  ·  ADVISOR","OUTRO":"OUTRO"};
+
+/* ---------- geometry helpers ---------- */
+function centerOf(sel){const el=document.querySelector(sel);if(!el)return{x:960,y:540,w:200,h:60};
+ const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height,r};}
+function rectOf(sel){const el=document.querySelector(sel);if(!el)return null;return el.getBoundingClientRect();}
+
+/* find current + previous cue index at time t */
+function cueAt(t){let idx=0;for(let i=0;i<TL.cues.length;i++){if(t>=TL.cues[i].start)idx=i;}return idx;}
+function ease(x){return x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;}
+
+/* cursor waypoint for a cue: target of its act (cursor sel, else focus, else center) */
+function cursorTargetForCue(c){const a=ACT[c.act]||{};const sel=a.cursor||a.focus;
+ if(!sel)return{x:960,y:420};const p=centerOf(sel);return{x:p.x,y:p.y};}
+
+/* ---------- deterministic render at absolute time t ---------- */
+function renderAt(t){
+ const idx=cueAt(t);const c=TL.cues[idx];const a=ACT[c.act]||{};
+ // caption
+ const capEnd=(c.disp_end!=null?c.disp_end:c.end);
+ const inWindow=(t>=c.start && t<=capEnd);
+ document.getElementById('captext').textContent=inWindow?c.text:'';
+ document.getElementById('caption').style.opacity=inWindow?1:0;
+ // chapter lower-third: show for first 3.2s of each chapter
+ const chap=TL.chapters.find(ch=>t>=ch.start && t<=ch.end)||TL.chapters[0];
+ const chapAge=t-chap.start;
+ const lower=document.getElementById('lower');
+ if(chapAge<3.4){lower.style.opacity=Math.min(1,chapAge/0.4);document.getElementById('lpart').textContent=CHAPTER_SHORT[chap.title]||chap.title;}
+ else{lower.style.opacity=Math.max(0,1-(chapAge-3.4)/0.4);}
+ // focus dim + spotlight
+ const dim=document.getElementById('dimlayer');const spot=document.getElementById('spot');
+ if(a.focus){const r=rectOf(a.focus);if(r){dim.style.opacity=.6;
+   spot.style.opacity=1;spot.style.left=(r.left-10)+'px';spot.style.top=(r.top-10)+'px';
+   spot.style.width=(r.width+20)+'px';spot.style.height=(r.height+20)+'px';}}
+ else{dim.style.opacity=0;spot.style.opacity=0;}
+ // cursor: interpolate from prev cue target to this cue target across first 0.9s of the cue
+ const prev=TL.cues[Math.max(0,idx-1)];
+ const from=cursorTargetForCue(prev),to=cursorTargetForCue(c);
+ const k=ease(Math.min(1,(t-c.start)/0.9));
+ const cx=from.x+(to.x-from.x)*k, cy=from.y+(to.y-from.y)*k;
+ const cur=document.getElementById('cursor');cur.style.left=cx+'px';cur.style.top=cy+'px';
+ // scan overlay
+ const so=document.getElementById('scanoverlay');
+ if(a.scan){so.style.opacity=1;const spin=(t*360*1.1)%360;document.getElementById('scanring').style.transform=`rotate(${spin}deg)`;}
+ else so.style.opacity=0;
+ // gauge after scan_done -> drop to GUARDED
+ const gword=document.getElementById('gword'),gsub=document.getElementById('gsub'),gring=document.getElementById('gring');
+ const afterScan = t>=(cueStart('scan_done'));
+ if(afterScan && t<cueStart('ports_focus')+0.1){ // transition visible around scan_done
+   gword.textContent='GUARDED';gword.style.color='#9cff5a';gsub.textContent='scan complete · low risk';
+   gring.style.stroke='#9cff5a';gring.style.strokeDashoffset='430';
+   document.getElementById('hostchip').textContent='MANABS-MACBOOK-AIR';
+ }
+ // popover
+ const pop=document.getElementById('popover');
+ if(a.pop){pop.style.opacity=1;
+   if(a.pop==='port'){const r=rectOf('.row4444');if(r){pop.style.left=(r.right-430)+'px';pop.style.top=(r.bottom+6)+'px';}
+     document.getElementById('poptitle').textContent='⚠ Port 4444 — Metasploit reverse shell';
+     document.getElementById('popmsg').textContent='Opened by a binary in a temp folder. Default C2 port. Verdict: CLOSE.';
+     document.getElementById('popcmd').textContent='netsh advfirewall firewall add rule name="Defender-block-4444" dir=in action=block protocol=TCP localport=4444';}
+   else{const r=rectOf('#feed');if(r){pop.style.left=(r.left+20)+'px';pop.style.top=(r.top+70)+'px';}
+     document.getElementById('poptitle').textContent='◢ RESOLVE — CVE-2024-6387 (OpenSSH)';
+     document.getElementById('popmsg').textContent='Unauthenticated RCE in sshd. Actively exploited. Update to 9.6 or later.';
+     document.getElementById('popcmd').textContent='sudo apt update && sudo apt install --only-upgrade openssh-server';}
+   const copy=document.getElementById('popcopy');
+   if(a.copy && (t-c.start)>2.4){copy.textContent='COPIED';copy.classList.add('done');}
+   else{copy.textContent='COPY';copy.classList.remove('done');}
+ } else pop.style.opacity=0;
+ // advisor plan reveal
+ const planActive=!!a.plan;
+ for(let i=0;i<PLAN.length;i++){const el=document.getElementById('pi'+i);
+   el.style.opacity=(planActive && (t-c.start)>i*0.5)?1:(planActive?0:0.25);}
+ // advisor ask typing
+ const askbox=document.getElementById('askbox'),ans=document.getElementById('answer');
+ if(a.ask){const q="what are my highest-risk exposures right now?";
+   const n=Math.min(q.length,Math.floor((t-c.start)/0.04));askbox.textContent=q.slice(0,n)||' ';
+   if((t-c.start)>2.6){ans.style.opacity=1;ans.textContent="Top risks: exposed RDP (3389), the Metasploit port 4444 from a temp binary, and an unpatched OpenSSH with an actively-exploited CVE. Start with RDP and 4444.";}
+   else ans.style.opacity=0;
+ } else {askbox.textContent=' ';ans.style.opacity=0;}
+ // code rain (deterministic)
+ drawRain(t);
+}
+function cueStart(act){const c=TL.cues.find(x=>x.act===act);return c?c.start:1e9;}
+
+/* ---------- deterministic code rain ---------- */
+const RN=document.getElementById('rain'),RX=RN.getContext('2d');
+const COLS=Math.floor(W/18);const SPEED=[],OFF=[];
+for(let i=0;i<COLS;i++){SPEED[i]=6+((i*37)%11);OFF[i]=(i*53)%H;}
+const GLY='アカサタナ01<>/\\[]{}=+*#$%日月ABCDEF0123456789';
+function hash(a,b){let x=(a*73856093)^(b*19349663);x=(x<<13)^x;return ((x*(x*x*15731+789221)+1376312589)&0x7fffffff);}
+function drawRain(t){RX.fillStyle='#000600';RX.fillRect(0,0,W,H);RX.font='15px monospace';
+ for(let i=0;i<COLS;i++){const head=((OFF[i]+t*SPEED[i]*16)% (H+200));
+   for(let j=0;j<22;j++){const y=head-j*18;if(y<0||y>H)continue;
+     const g=GLY[hash(i,Math.floor(y/18)+Math.floor(t*SPEED[i]/3))%GLY.length];
+     RX.fillStyle=j===0?'#c9ffe0':`rgba(0,255,102,${0.5-j*0.02})`;RX.fillText(g,i*18,y);}}}
+
+window.renderAt=renderAt;
+window.__ready=false;
+window.addEventListener('load',()=>{ setTimeout(()=>{renderAt(0);window.__ready=true;},120); });
+</script>
+</body>
+</html>
