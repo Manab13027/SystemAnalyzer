@@ -1,47 +1,30 @@
 # SystemAnalyzer
 
-_TODO: one line on what this project does and who it's for._
+A **web reconnaissance and CVE-intelligence platform** for security research and
+lab use. It combines a tracking/telemetry web endpoint, network and service
+scanning, IP intelligence, CVE lookups, and LLM-assisted analysis behind a
+dashboard, plus a self-contained vulnerability lab for practising on
+Docker-based targets.
 
-**Stack:** Node.js / JavaScript
+## Components
+- **Dashboard** — real-time target list with CVE-based risk scoring
+- **Network scanning** — port/service enumeration (nmap)
+- **IP intelligence** — geolocation / ISP / proxy-VPN indicators
+- **CVE intelligence** — vulnerability lookups and scoring (`cve_lookup.py`)
+- **LLM analysis** — Ollama (local) → Anthropic → OpenAI fallback (`llm_analyst.py`)
+- **Vulnerability lab** — Docker-based CTF targets with flag scoring (`lab/`)
+
+## Stack
+Python · Flask · SQLite · nmap · Docker · local/hosted LLMs
 
 ## Getting started
-
 ```bash
-npm install
-```
-
-## Dependencies
-
-- `pptxgenjs`
-
-## Project structure
-
-```
-CLAUDE.md
-CODE_GRAPH.md
-Claude outputs/
-app.py
-cve_lookup.py
-data/
-db.py
-docker-compose.lab.yml
-fingerprint.py
-gen_tsunami.js
-lab/
-llm_analyst.py
-package-lock.json
-package.json
-push_to_github.sh
-requirements.txt
-start.sh
-static/
-templates/
+./start.sh          # checks deps, launches the Flask app, opens the dashboard
+# or: python app.py   (http://localhost:5000)
 ```
 
 ## Notes
-
-_TODO: anything a new user should know — configuration, env vars, known limitations._
-
----
-
-_README scaffolded by readme_gen. Edit the TODOs to finish it._
+> **Authorised use only.** This is a security-research / red-team lab tool.
+> Run it only against systems and targets you own or have explicit written
+> permission to test. You are responsible for complying with all applicable
+> laws and for handling any collected data lawfully (consent, privacy, retention).
